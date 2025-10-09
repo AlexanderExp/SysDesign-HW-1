@@ -123,3 +123,23 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+# env & secrets
+.env
+.env.*
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.dist/
+.build/
+.pytest_cache/
+.coverage
+htmlcov/
+# IDE
+.idea/
+.vscode/
+*.iml
+# Docker / DB
+pgdata/
+# OS
+.DS_Store
