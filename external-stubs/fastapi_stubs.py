@@ -21,7 +21,8 @@ async def get_tariff(id: Optional[str] = Query(None, description="An optional ID
     if id is None:
         raise HTTPException(status_code=400, detail="ID parameter is required and cannot be empty.")
 
-    return Tariff(id, price_per_hour=50, free_period_min=5, default_deposit=300)
+    # return Tariff(id, price_per_hour=50, free_period_min=5, default_deposit=300)
+    return Tariff(id, price_per_hour=60, free_period_min=0, default_deposit=300)
 
 
 @app.get("/user-profile")
