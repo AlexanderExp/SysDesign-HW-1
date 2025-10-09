@@ -2,7 +2,7 @@ from typing import Optional
 import requests
 from cachetools import TTLCache, cached
 from .config import EXTERNAL_BASE, TARIFF_TTL_SEC, HTTP_TIMEOUT_SEC
-from model import Tariff, UserProfile, Slot, StationData, ConfigMap, EjectResponse
+from .model import Tariff, UserProfile, Slot, StationData, ConfigMap, EjectResponse
 
 session = requests.Session()
 session.headers.update({"User-Agent": "rental-core/1.0"})
