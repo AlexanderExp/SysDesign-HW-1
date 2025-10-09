@@ -1,21 +1,23 @@
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException
 from . import clients
 from .schemas import QuoteRequest, QuoteResponse, StartRequest, OrderStatus
+from .db import SessionLocal, init_db
+from .models import Rental
 
 app = FastAPI(title="rental-core")
 
-# in-memory до БД/Redis
-_offers: dict[str, dict] = {}  # quote_id -> offer + expires_at
-_orders: dict[str, dict] = {}  # order_id -> order
+_offers: dict[str, dict] = {}
 
 
 @app.on_event("startup")
 def init_configs():
-    # обязателен конфиг на старте: если упадёт — сервис не поднимется (по тз)
+    # конфиги обязательны на старте
     clients.refresh_configs()
+    # создаём таблицы (позже заменим на alembic миграции)
+    init_db()
 
 
 @app.get("/health")
@@ -25,19 +27,18 @@ def health():
 
 @app.post("/rentals/quote", response_model=QuoteResponse)
 def create_quote(req: QuoteRequest):
-    station = clients.get_station_data(req.station_id)  # критичный источник
+    station = clients.get_station_data(req.station_id)
     if station is None:
         raise HTTPException(503, "stations unavailable")
 
-    tariff = clients.get_tariff(station.tariff_id)      # LRU+TTL, 10 мин
-    user = clients.get_user_profile(req.user_id)        # с фоллбэком
-    cfg = clients.get_configs()                         # из кеша
+    tariff = clients.get_tariff(station.tariff_id)
+    user = clients.get_user_profile(req.user_id)
+    cfg = clients.get_configs()
 
-    # прайсинг из шаблона + коэффициент last_banks_increase
     price = tariff.price_per_hour
     if getattr(cfg, "price_coeff_settings", None):
         available = sum(0 if s.empty else 1 for s in station.slots)
-        if available <= 2:  # MAGIC_CONSTANT из шаблона
+        if available <= 2:
             inc = float(cfg.price_coeff_settings["last_banks_increase"])
             price = int(price * inc)
 
@@ -56,7 +57,7 @@ def create_quote(req: QuoteRequest):
         "free_period_min": free_min,
         "deposit": deposit,
         "expires_at": expires,
-        "tariff_version": tariff.id,  # условная версия
+        "tariff_version": tariff.id,
     }
     return QuoteResponse(
         quote_id=qid, user_id=req.user_id, station_id=req.station_id,
@@ -75,53 +76,69 @@ def start_rental(req: StartRequest):
 
     order_id = str(uuid.uuid4())
 
-    # hold депозита (если платежи недоступны — по тз можно продолжать; долг реализуем позже в БД)
+    # попытка холда депозита (если платежи недоступны — не блокируем старт)
     try:
         if offer["deposit"] > 0:
             clients.hold_money_for_order(
                 offer["user_id"], order_id, offer["deposit"])
     except Exception:
-        # платежи недоступны -> допустим создание заказа (долг реализуем в worker-е)
         pass
 
     ej = clients.eject_powerbank(offer["station_id"])
     if not ej.success or not ej.powerbank_id:
-        # отменяем hold (если был)
         try:
             clients.clear_money_for_order(offer["user_id"], order_id, 0)
         except Exception:
             pass
         raise HTTPException(409, "no powerbank available")
 
-    # финализируем заказ (пока в памяти)
     _offers.pop(req.quote_id, None)
-    _orders[order_id] = {
-        "order_id": order_id,
-        "user_id": offer["user_id"],
-        "powerbank_id": ej.powerbank_id,
-        "price_per_hour": offer["price_per_hour"],
-        "free_period_min": offer["free_period_min"],
-        "deposit": offer["deposit"],
-        "start_time": time.time(),
-        "status": "active",
-        "total_amount": 0,
-    }
+
+    # сохраняем заказ в БД
+    with SessionLocal() as s:
+        r = Rental(
+            id=order_id,
+            user_id=offer["user_id"],
+            powerbank_id=ej.powerbank_id,
+            price_per_hour=offer["price_per_hour"],
+            free_period_min=offer["free_period_min"],
+            deposit=offer["deposit"],
+            status="active",
+            total_amount=0,
+        )
+        s.add(r)
+        s.commit()
+
     return OrderStatus(order_id=order_id, status="active",
                        powerbank_id=ej.powerbank_id, total_amount=0)
 
 
 @app.get("/rentals/{order_id}/status", response_model=OrderStatus)
 def get_status(order_id: str):
-    o = _orders.get(order_id)
-    if not o:
-        raise HTTPException(404, "order not found")
-    # грубый расчёт накопленной стоимости (как в шаблоне, без биллинга по событиям)
-    elapsed_sec = max(0, time.time() - o["start_time"])
-    if elapsed_sec <= o["free_period_min"] * 60:
-        total = 0
-    else:
-        hours = int(elapsed_sec // 3600)
-        total = hours * o["price_per_hour"]
-    o["total_amount"] = total
-    return OrderStatus(order_id=order_id, status=o["status"],
-                       powerbank_id=o["powerbank_id"], total_amount=total)
+    with SessionLocal() as s:
+        r = s.get(Rental, order_id)
+        if not r:
+            raise HTTPException(404, "order not found")
+
+        # расчёт накопленной стоимости (упрощённый, как в шаблоне)
+        started_ts = r.started_at
+        now = datetime.now(timezone.utc)
+        elapsed_sec = max(0, (now - started_ts).total_seconds())
+        if elapsed_sec <= r.free_period_min * 60:
+            total = 0
+        else:
+            hours = int(elapsed_sec // 3600)
+            total = hours * r.price_per_hour
+
+        # обновим кешированное поле total_amount (необязательно)
+        if total != r.total_amount and r.status == "active":
+            r.total_amount = total
+            s.add(r)
+            s.commit()
+
+        return OrderStatus(
+            order_id=r.id,
+            status=r.status,
+            powerbank_id=r.powerbank_id,
+            total_amount=r.total_amount,
+        )

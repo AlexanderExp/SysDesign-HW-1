@@ -7,19 +7,15 @@ services:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
     ports: ["5432:5432"]
-    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
 
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
 
   external-stubs:
-    image: python:3.11-slim
-    working_dir: /app
-    volumes:
-      - ./external-stubs:/app
-      - ./model.py:/app/model.py
-    command: ["python", "fastapi_stubs.py"]
+    build:
+      context: ./external-stubs
     ports: ["3629:3629"]
 
   rental-core:
