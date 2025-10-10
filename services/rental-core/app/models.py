@@ -1,6 +1,5 @@
-# services/rental-core/app/models.py
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, Text, UniqueConstraint, Boolean
+from sqlalchemy import String, Integer, DateTime, Text, UniqueConstraint, Boolean, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -13,8 +12,10 @@ class Rental(Base):
     price_per_hour: Mapped[int] = mapped_column(Integer)
     free_period_min: Mapped[int] = mapped_column(Integer)
     deposit: Mapped[int] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(16))
-    total_amount: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(
+        String(16))  # ACTIVE / FINISHED / BUYOUT
+    total_amount: Mapped[int] = mapped_column(
+        Integer, default=0)  # устаревшее поле; для совместимости
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     finished_at: Mapped[datetime | None] = mapped_column(
@@ -34,10 +35,10 @@ class IdempotencyKey(Base):
 
 class PaymentAttempt(Base):
     __tablename__ = "payment_attempts"
-    __table_args__ = {'extend_existing': True}
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True)
-    rental_id: Mapped[str] = mapped_column(String(64))  # <- тут БЕЗ index=True
+    rental_id: Mapped[str] = mapped_column(
+        String(64), index=True)  # Хватает index=True
     amount: Mapped[int] = mapped_column(Integer)
     success: Mapped[bool] = mapped_column(Boolean, default=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -46,9 +47,13 @@ class PaymentAttempt(Base):
 
 
 
+# явный индекс (на случай конфликтов имён)
+Index("ix_payment_attempts_rental_id", PaymentAttempt.rental_id)
+
+
 class Debt(Base):
     __tablename__ = "debts"
-    __table_args__ = {'extend_existing': True}  # <-- добавь
+    __table_args__ = {'extend_existing': True}
     rental_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     amount_total: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(

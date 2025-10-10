@@ -1,5 +1,7 @@
-# services/rental-core/app/clients.py
 from __future__ import annotations
+from datetime import date, datetime
+from decimal import Decimal
+import json
 from typing import Optional
 import requests
 from requests.adapters import HTTPAdapter
@@ -10,6 +12,26 @@ from cachetools import TTLCache, cached
 from .config import EXTERNAL_BASE, TARIFF_TTL_SEC, HTTP_TIMEOUT_SEC
 from .model import Tariff, UserProfile, Slot, StationData, ConfigMap, EjectResponse
 
+from uuid import uuid4 as _uuid4
+
+
+def uuid4() -> str:
+    return str(_uuid4())
+
+# ---- safe JSON stringify helper (for logging / error payloads) ----
+
+
+def _json_default(o):
+    if isinstance(o, Decimal):
+        return float(o)
+    if isinstance(o, (date, datetime)):
+        return o.isoformat()
+    return str(o)
+
+
+def json_dumps(obj) -> str:
+    """Safe json.dumps with sane defaults (used only for logs/errors)."""
+    return json.dumps(obj, ensure_ascii=False, default=_json_default)
 
 # ---------- HTTP session с ретраями и таймаутами ----------
 def _build_session() -> requests.Session:
@@ -44,7 +66,6 @@ def _get(path: str, params: Optional[dict] = None) -> dict:
 def _post(path: str, payload: dict) -> dict:
     r = _session.post(_url(path), json=payload, timeout=HTTP_TIMEOUT_SEC)
     r.raise_for_status()
-    # /hold-money-for-order и /clear-money-for-order возвращают json
     return r.json() if r.content else {}
 
 
@@ -62,8 +83,6 @@ def get_station_data(station_id: str) -> StationData:
 
 
 # ---------- tariffs: LRU+TTL ----------
-# Важно: TTLCache не вернёт протухшие данные — если TTL истёк, будет реальный вызов.
-# Если апстрим недоступен, получим исключение -> это соответствует требованию «старше TTL — ошибка».
 _tariff_cache = TTLCache(maxsize=1024, ttl=TARIFF_TTL_SEC)
 
 
@@ -82,15 +101,18 @@ def get_tariff(zone_id: str) -> Tariff:
 def get_user_profile(user_id: str) -> UserProfile:
     try:
         j = _get("/user-profile", {"id": user_id})
-        return UserProfile(
+        p = UserProfile(
             id=user_id,
             has_subscribtion=bool(j["has_subscribtion"]),
             trusted=bool(j["trusted"]),
         )
+        setattr(p, "_from_fallback", False)
+        return p
     except Exception:
         # Фоллбэк: пользователь без подписки и не trusted.
-        # Жадный прайсинг применяем в бизнес-логике (цена/депозит из конфигов).
-        return UserProfile(id=user_id, has_subscribtion=False, trusted=False)
+        p = UserProfile(id=user_id, has_subscribtion=False, trusted=False)
+        setattr(p, "_from_fallback", True)
+        return p
 
 
 # ---------- configs: кэш + потокобезопасный refresh ----------
