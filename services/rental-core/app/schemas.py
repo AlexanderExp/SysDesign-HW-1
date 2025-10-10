@@ -21,6 +21,9 @@ class StartRequest(BaseModel):
     quote_id: str
 
 
+class StopRequest(BaseModel):
+    station_id: str
+
 class OrderStatus(BaseModel):
     order_id: str
     status: str

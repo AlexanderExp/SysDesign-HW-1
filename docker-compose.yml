@@ -17,6 +17,14 @@ services:
     build:
       context: ./external-stubs
     ports: ["3629:3629"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3629/configs')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 2s
+
 
   rental-core:
     build:
@@ -24,8 +32,26 @@ services:
       dockerfile: services/rental-core/Dockerfile
     env_file:
       - .env
-    depends_on: [db, redis, external-stubs]
-    ports: ["8000:8000"]
+    environment:
+      EXTERNAL_BASE: http://external-stubs:3629
+      DATABASE_URL: postgresql+psycopg2://app:app@db:5432/rental
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      external-stubs:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    
+
+  billing-worker:
+    build:
+      context: .
+      dockerfile: services/billing-worker/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - external-stubs
 
 volumes:
   pgdata:

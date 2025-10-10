@@ -1,9 +1,8 @@
+# services/rental-core/app/model.py
 from dataclasses import dataclass
-
 from datetime import datetime
 
-
-# Содержит в себе DTO (data transfer objects) / данные, получаемые из внешних источников
+# --- DTO из внешних источников и внутренних вспомогательных структур ---
 
 
 @dataclass
@@ -36,35 +35,11 @@ class UserProfile:
     trusted: bool
 
 
-@dataclass
-class OfferData:
-    id: str
-    user_id: str
-    station_id: str
-    price_per_hour: int
-    free_period_min: int
-    deposit: int
-
-
-@dataclass
-class OrderData:
-    id: str
-    user_id: str
-    start_station_id: str
-    finish_station_id: str
-    price_per_hour: int
-    free_period_min: int
-    deposit: int
-    total_amount: int
-    start_time: datetime
-    finish_time: datetime
-
-
 class ConfigMap:
     def __init__(self, data: dict):
         self._data = data
         for k, v in data.items():
-            self.__setattr__(k, v)
+            setattr(self, k, v)
 
     def __getattr__(self, item):
         return self._data.get(item, None)

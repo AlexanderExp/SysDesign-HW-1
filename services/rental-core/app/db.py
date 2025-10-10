@@ -12,10 +12,11 @@ class Base(DeclarativeBase):
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 SessionLocal = sessionmaker(
-    bind=engine, autoflush=False, autocommit=False, future=True)
+    bind=engine, autoflush=False, autocommit=False,
+    expire_on_commit=False, future=True
+)
 
 
 def init_db():
-    # импорт здесь, чтобы избежать циклов
-    from .models import Rental
+    from .models import Rental, IdempotencyKey, PaymentAttempt, Debt
     Base.metadata.create_all(bind=engine)
