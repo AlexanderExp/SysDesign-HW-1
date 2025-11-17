@@ -26,7 +26,7 @@ OID=$(echo "$SJSON" | python3 -c 'import sys,json; print(json.load(sys.stdin)["o
 
 # Форсим быстрый buyout: уменьшим порог и «прокрутим» время
 # (в биллинг-воркере R_BUYOUT считывается из env при старте — перед прогоном suite задайте низкое значение)
-FF_MIN=${FF_MINUTES:-65}
+FF_MIN=${FF_MINUTES:-210}
 docker compose exec -T db psql -U app -d rental -c \
 "update rentals set started_at = now() - interval '${FF_MIN} minutes', status='ACTIVE' where id='${OID}';" | cat
 
