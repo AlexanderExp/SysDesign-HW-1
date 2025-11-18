@@ -23,6 +23,8 @@ quote_once() {
 
 echo "== tariff cache test (TTL=${TTL}s) =="
 
+
+sleep $(( EFF_TTL + 5 ))
 # Барьер логов
 barrier_now
 base=$(count_tariff_calls)

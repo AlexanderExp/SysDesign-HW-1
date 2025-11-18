@@ -8,6 +8,11 @@ services:
       POSTGRES_PASSWORD: app
     ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d rental"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -37,6 +42,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://app:app@db:5432/rental
       REDIS_URL: redis://redis:6379/0
     depends_on:
+      db:
+        condition: service_healthy
       external-stubs:
         condition: service_healthy
     ports:
@@ -50,8 +57,10 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
-      - external-stubs
+      db:
+        condition: service_healthy
+      external-stubs:
+        condition: service_healthy
 
 volumes:
   pgdata:

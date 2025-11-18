@@ -1,68 +1,76 @@
 # services/rental-core/app/main.py
-from datetime import timedelta  # ниже используется
+from datetime import datetime, timezone, timedelta
+from typing import Optional
+
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime, timezone
-
 from sqlalchemy import text
+
 from .db import SessionLocal
-from .models import Rental, IdempotencyKey
+from .models import Base, Rental, IdempotencyKey
 from . import clients
 from .config_cache import start_configs_refresher, load_initial_or_die
 import json
 
 app = FastAPI()
 
-
-def _load_quote_or_none(s, quote_id: str) -> Optional[dict]:
-    """Совместимость с тестами: просто обёртка над _get_quote."""
-    return _get_quote(s, quote_id)
-
-
-def _consume_quote(s, quote_id: str) -> None:
+def _ensure_core_schema(s) -> None:
     """
-    Идемпотентно «потребляет» (удаляет) квоту.
-    Тестам достаточно факта пропажи; повторные вызовы — ок.
+    Создаём через SQLAlchemy все ORM-таблицы (rentals, idempotency_keys,
+    payment_attempts, debts и т.п.), если их ещё нет.
+
+    Работает и для SQLite (pytest), и для Postgres (docker).
     """
-    _ensure_quotes_schema(s)
-    s.execute(text("DELETE FROM quotes WHERE id = :id"), {"id": quote_id})
+    bind = s.get_bind()
+    Base.metadata.create_all(bind=bind)
 
-@app.on_event("startup")
-def _startup():
-    if not load_initial_or_die():
-        raise RuntimeError("failed to load initial configs")
-    start_configs_refresher(app)
 
-# --------- ВСПОМОГАТЕЛЬНЫЕ SQL-ХЕЛПЕРЫ (portable для SQLite/Postgres) ---------
-
+# ---------- вспомогательные SQL-хелперы (совместимы с SQLite и Postgres) ----------
 
 def _ensure_quotes_schema(s) -> None:
-    # без TIMESTAMPTZ/DEFAULT now(), чтобы было совместимо с SQLite
-    s.execute(text("""
+    bind = s.get_bind()
+    dialect = bind.dialect.name if bind is not None else "sqlite"
+
+    # Для Postgres — TIMESTAMPTZ, для SQLite — просто DATETIME
+    if dialect in ("postgresql", "postgres"):
+        dt_type = "TIMESTAMPTZ"
+    else:
+        dt_type = "DATETIME"
+
+    s.execute(text(f"""
         CREATE TABLE IF NOT EXISTS quotes (
-            id           VARCHAR(64)  PRIMARY KEY,
-            user_id      VARCHAR(64)  NOT NULL,
-            station_id   VARCHAR(128) NOT NULL,
-            price_per_hour   INTEGER  NOT NULL,
-            free_period_min  INTEGER  NOT NULL,
-            deposit          INTEGER  NOT NULL,
-            expires_at   DATETIME     NOT NULL,
-            created_at   DATETIME     NOT NULL
+            id              VARCHAR(64)  PRIMARY KEY,
+            user_id         VARCHAR(64)  NOT NULL,
+            station_id      VARCHAR(128) NOT NULL,
+            price_per_hour  INTEGER      NOT NULL,
+            free_period_min INTEGER      NOT NULL,
+            deposit         INTEGER      NOT NULL,
+            expires_at      {dt_type}    NOT NULL,
+            created_at      {dt_type}    NOT NULL
         )
     """))
+
 
 
 def _ensure_debts_schema(s) -> None:
-    s.execute(text("""
+    bind = s.get_bind()
+    dialect = bind.dialect.name if bind is not None else "sqlite"
+
+    if dialect in ("postgresql", "postgres"):
+        dt_type = "TIMESTAMPTZ"
+    else:
+        dt_type = "DATETIME"
+
+    s.execute(text(f"""
         CREATE TABLE IF NOT EXISTS debts (
             rental_id       VARCHAR(64) PRIMARY KEY,
             amount_total    INTEGER     NOT NULL DEFAULT 0,
-            updated_at      DATETIME    NOT NULL,
+            updated_at      {dt_type}   NOT NULL,
             attempts        INTEGER     NOT NULL DEFAULT 0,
-            last_attempt_at DATETIME    NULL
+            last_attempt_at {dt_type}   NULL
         )
     """))
+
 
 
 def _insert_quote(
@@ -83,9 +91,11 @@ def _insert_quote(
     s.execute(
         text("""
             INSERT INTO quotes (
-                id, user_id, station_id, price_per_hour, free_period_min, deposit, expires_at, created_at
+                id, user_id, station_id, price_per_hour,
+                free_period_min, deposit, expires_at, created_at
             ) VALUES (
-                :id, :user_id, :station_id, :pph, :free_min, :deposit, :expires_at, :created_at
+                :id, :user_id, :station_id, :pph,
+                :free_min, :deposit, :expires_at, :created_at
             )
         """),
         {
@@ -106,8 +116,11 @@ def _get_quote(s, quote_id: str) -> Optional[dict]:
     _ensure_quotes_schema(s)
     row = s.execute(
         text("""
-            SELECT id, user_id, station_id, price_per_hour, free_period_min, deposit, expires_at, created_at
-            FROM quotes WHERE id = :id
+            SELECT id, user_id, station_id,
+                   price_per_hour, free_period_min, deposit,
+                   expires_at, created_at
+            FROM quotes
+            WHERE id = :id
         """),
         {"id": quote_id},
     ).mappings().one_or_none()
@@ -145,8 +158,34 @@ def _attach_deposit_debt(s, rental_id: str, amount: int, now: datetime) -> None:
         )
     s.flush()
 
-# --------- API-модели ---------
 
+# --- вспомогательные функции для pytest’ов rental-core/tests/test_quotes_and_debt.py ---
+
+def _load_quote_or_none(s, quote_id: str) -> Optional[dict]:
+    """Совместимость с тестами: обёртка над _get_quote."""
+    return _get_quote(s, quote_id)
+
+
+def _consume_quote(s, quote_id: str) -> None:
+    """
+    Идемпотентно «потребляет» (удаляет) квоту.
+    Повторный вызов просто ничего не сделает.
+    """
+    _ensure_quotes_schema(s)
+    s.execute(text("DELETE FROM quotes WHERE id = :id"), {"id": quote_id})
+    s.flush()
+
+
+# ---------- startup ----------
+
+@app.on_event("startup")
+def _startup():
+    if not load_initial_or_die():
+        raise RuntimeError("failed to load initial configs")
+    start_configs_refresher(app)
+
+
+# ---------- API-модели ----------
 
 class QuoteIn(BaseModel):
     station_id: str
@@ -158,20 +197,26 @@ def quote(body: QuoteIn):
     sd = clients.get_station_data(body.station_id)
     tariff = clients.get_tariff(sd.tariff_id)
     user = clients.get_user_profile(body.user_id)
+
     price_per_hour = tariff.price_per_hour
     free_min = tariff.free_period_min
     deposit = tariff.default_deposit if not user.trusted else max(
-        0, tariff.default_deposit // 2)
+        0, tariff.default_deposit // 2
+    )
 
-    # храним оффер локально (БД) — чтобы старт мог его проверить
     now = datetime.now(timezone.utc)
     qid = clients.uuid4()
     with SessionLocal() as s:
         _insert_quote(
-            s, qid, body.user_id, body.station_id,
-            price_per_hour, free_min, deposit,
+            s,
+            qid,
+            body.user_id,
+            body.station_id,
+            price_per_hour,
+            free_min,
+            deposit,
             expires_at=now.replace(microsecond=0) + timedelta(seconds=60),
-            created_at=now
+            created_at=now,
         )
         s.commit()
 
@@ -196,6 +241,9 @@ def start_rental(body: StartIn, Idempotency_Key: Optional[str] = Header(default=
         raise HTTPException(400, "missing Idempotency-Key")
 
     with SessionLocal() as s:
+        # гарантируем, что все ORM-таблицы созданы (в т.ч. idempotency_keys, rentals, payment_attempts, debts)
+        _ensure_core_schema(s)
+
         # идемпотентность
         ik = s.get(IdempotencyKey, Idempotency_Key)
         if ik:
@@ -206,8 +254,19 @@ def start_rental(body: StartIn, Idempotency_Key: Optional[str] = Header(default=
         if not q:
             raise HTTPException(400, "invalid or expired quote")
 
-        if datetime.now(timezone.utc) > q["expires_at"]:
-            raise HTTPException(400, "quote expired")
+        # аккуратно нормализуем expires_at (чтобы не падать на naive/aware разнице)
+        expires_at = q["expires_at"]
+        if isinstance(expires_at, str):
+            try:
+                expires_at = datetime.fromisoformat(expires_at)
+            except Exception:
+                expires_at = None
+
+        if isinstance(expires_at, datetime):
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > expires_at:
+                raise HTTPException(400, "quote expired")
 
         # пытаемся выдать павербанк
         ej = clients.eject_powerbank(q["station_id"])
@@ -229,12 +288,14 @@ def start_rental(body: StartIn, Idempotency_Key: Optional[str] = Header(default=
         s.add(r)
         s.flush()
 
-        # держим депозит — НО допускаем деградацию (навешиваем долг и всё равно запускаем)
+        # держим депозит — НО допускаем деградацию по payments
         try:
             clients.hold_money_for_order(
-                user_id=r.user_id, order_id=r.id, amount=r.deposit)
+                user_id=r.user_id, order_id=r.id, amount=r.deposit
+            )
         except Exception:
-            # payments недоступны -> навешиваем начальный долг = deposit, воркер позже попробует списать
+            # payments недоступны -> навешиваем начальный долг = deposit,
+            # дальше за него отвечает billing-worker
             _attach_deposit_debt(s, r.id, r.deposit, now)
 
         resp = {
@@ -242,10 +303,16 @@ def start_rental(body: StartIn, Idempotency_Key: Optional[str] = Header(default=
             "status": r.status,
             "powerbank_id": r.powerbank_id,
             "total_amount": r.total_amount,
-            "debt": 0
+            "debt": 0,
         }
-        s.add(IdempotencyKey(key=Idempotency_Key, scope="start", user_id=r.user_id,
-                             response_json=json.dumps(resp, ensure_ascii=False)))
+        s.add(
+            IdempotencyKey(
+                key=Idempotency_Key,
+                scope="start",
+                user_id=r.user_id,
+                response_json=json.dumps(resp, ensure_ascii=False),
+            )
+        )
         s.commit()
         return resp
 
@@ -257,6 +324,7 @@ class StopIn(BaseModel):
 @app.post("/rentals/{order_id}/stop")
 def stop_rental(order_id: str, body: StopIn):
     with SessionLocal() as s:
+        _ensure_core_schema(s)
         r = s.get(Rental, order_id)
         if not r:
             raise HTTPException(404, "order not found")
@@ -268,7 +336,7 @@ def stop_rental(order_id: str, body: StopIn):
                 "status": r.status,
                 "powerbank_id": r.powerbank_id,
                 "total_amount": r.total_amount,
-                "debt": 0
+                "debt": 0,
             }
 
         r.status = "FINISHED"
@@ -277,7 +345,8 @@ def stop_rental(order_id: str, body: StopIn):
 
         try:
             clients.clear_money_for_order(
-                user_id=r.user_id, order_id=r.id, amount=r.total_amount)
+                user_id=r.user_id, order_id=r.id, amount=r.total_amount
+            )
         except Exception:
             # долг (если есть) доберёт биллинг-воркер, не валим стоп
             pass
@@ -288,23 +357,34 @@ def stop_rental(order_id: str, body: StopIn):
             "status": r.status,
             "powerbank_id": r.powerbank_id,
             "total_amount": r.total_amount,
-            "debt": 0
+            "debt": 0,
         }
 
 
 @app.get("/rentals/{order_id}/status")
 def status(order_id: str):
     with SessionLocal() as s:
+        _ensure_core_schema(s)
         r = s.get(Rental, order_id)
         if not r:
             raise HTTPException(404, "order not found")
+
+        # подтянем реальный долг из таблицы debts
+        _ensure_debts_schema(s)
+        row = s.execute(
+            text("SELECT amount_total FROM debts WHERE rental_id = :rid"),
+            {"rid": order_id},
+        ).fetchone()
+        debt = int(row[0]) if row and row[0] is not None else 0
+
         return {
             "order_id": r.id,
             "status": r.status,
             "powerbank_id": r.powerbank_id,
             "total_amount": r.total_amount,
-            "debt": 0
+            "debt": debt,
         }
+
 
 
 @app.get("/health")
