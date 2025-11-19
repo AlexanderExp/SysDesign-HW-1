@@ -298,12 +298,20 @@ def start_rental(body: StartIn, Idempotency_Key: Optional[str] = Header(default=
             # дальше за него отвечает billing-worker
             _attach_deposit_debt(s, r.id, r.deposit, now)
 
+        # подтягиваем актуальный долг по заказу (с учётом возможного _attach_deposit_debt)
+        _ensure_debts_schema(s)
+        row = s.execute(
+            text("SELECT amount_total FROM debts WHERE rental_id = :rid"),
+            {"rid": r.id},
+        ).fetchone()
+        debt = int(row[0]) if row and row[0] is not None else 0
+
         resp = {
             "order_id": r.id,
             "status": r.status,
             "powerbank_id": r.powerbank_id,
             "total_amount": r.total_amount,
-            "debt": 0,
+            "debt": debt,
         }
         s.add(
             IdempotencyKey(
@@ -315,6 +323,8 @@ def start_rental(body: StartIn, Idempotency_Key: Optional[str] = Header(default=
         )
         s.commit()
         return resp
+
+
 
 
 class StopIn(BaseModel):
@@ -329,6 +339,14 @@ def stop_rental(order_id: str, body: StopIn):
         if not r:
             raise HTTPException(404, "order not found")
 
+        # подтягиваем текущий долг
+        _ensure_debts_schema(s)
+        row = s.execute(
+            text("SELECT amount_total FROM debts WHERE rental_id = :rid"),
+            {"rid": order_id},
+        ).fetchone()
+        current_debt = int(row[0]) if row and row[0] is not None else 0
+
         # идемпотентность: если уже завершен — просто отдаем текущее состояние
         if r.status == "FINISHED":
             return {
@@ -336,7 +354,7 @@ def stop_rental(order_id: str, body: StopIn):
                 "status": r.status,
                 "powerbank_id": r.powerbank_id,
                 "total_amount": r.total_amount,
-                "debt": 0,
+                "debt": current_debt,
             }
 
         r.status = "FINISHED"
@@ -351,14 +369,23 @@ def stop_rental(order_id: str, body: StopIn):
             # долг (если есть) доберёт биллинг-воркер, не валим стоп
             pass
 
+        # после clear_money_for_order долг в таблице debts мог измениться (в теории),
+        # поэтому пересчитаем ещё раз на момент ответа
+        row2 = s.execute(
+            text("SELECT amount_total FROM debts WHERE rental_id = :rid"),
+            {"rid": order_id},
+        ).fetchone()
+        final_debt = int(row2[0]) if row2 and row2[0] is not None else 0
+
         s.commit()
         return {
             "order_id": r.id,
             "status": r.status,
             "powerbank_id": r.powerbank_id,
             "total_amount": r.total_amount,
-            "debt": 0,
+            "debt": final_debt,
         }
+
 
 
 @app.get("/rentals/{order_id}/status")
@@ -384,6 +411,7 @@ def status(order_id: str):
             "total_amount": r.total_amount,
             "debt": debt,
         }
+
 
 
 
