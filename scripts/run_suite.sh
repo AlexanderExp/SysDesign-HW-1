@@ -101,10 +101,15 @@ run_test "tariff cache & configs" \
    RENTAL_CORE_BASE=${RENTAL_CORE_BASE} STATION_ID=${STATION_ID} USER_ID=${USER_ID} \
    ./scripts/integration_cache_and_configs.sh" || FAIL=1
 
-run_test "money flow" \
+run_test "money flow smoke" \
   "BILLING_TICK_SEC=${BILLING_TICK_SEC} \
    RENTAL_CORE_BASE=${RENTAL_CORE_BASE} STATION_ID=${STATION_ID} USER_ID=${USER_ID} \
    ./scripts/test_money_flows.sh" || FAIL=1
+
+run_test "money flow serious (billing)" \
+  "BILLING_TICK_SEC=${BILLING_TICK_SEC} FF_MINUTES=130 \
+   RENTAL_CORE_BASE=${RENTAL_CORE_BASE} STATION_ID=${STATION_ID} USER_ID=${USER_ID} \
+   ./scripts/test_billing_2.sh" || FAIL=1
 
 run_test "buyout auto-finish" \
   "R_BUYOUT=${R_BUYOUT} BILLING_TICK_SEC=${BILLING_TICK_SEC} \

@@ -98,6 +98,7 @@ def _ensure_columns_if_missing() -> None:
 
 def ensure_schema() -> None:
     try:
+        Base.metadata.create_all(engine)
         PaymentAttempt.__table__.create(bind=engine, checkfirst=True)
         Debt.__table__.create(bind=engine, checkfirst=True)
         _ensure_columns_if_missing()
@@ -233,7 +234,15 @@ def tick_once():
             paid = _sum_paid(s, rental.id)
             debt = _get_debt(s, rental.id)
 
-            if due >= R_BUYOUT or (paid + debt) >= R_BUYOUT:
+            # if due >= R_BUYOUT or (paid + debt) >= R_BUYOUT:
+            #     s.execute(
+            #         update(Rental)
+            #         .where(Rental.id == rental.id, Rental.status == "ACTIVE")
+            #         .values(status="BUYOUT", finished_at=_aware(now))
+            #     )
+            #     s.commit()
+            #     continue
+            if (paid + debt) >= R_BUYOUT:
                 s.execute(
                     update(Rental)
                     .where(Rental.id == rental.id, Rental.status == "ACTIVE")
