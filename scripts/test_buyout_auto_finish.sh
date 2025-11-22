@@ -10,16 +10,16 @@ TICK="${BILLING_TICK_SEC:-10}"
 R_BUYOUT="${R_BUYOUT:-500}"
 
 echo "== health =="
-http_get_json "$BASE/health" >/dev/null
+http_get_json "$BASE/api/v1/health" >/dev/null
 echo "✅ rental-core alive"
 
 echo
 echo "== start short rental =="
-QJSON=$(http_post_json "$BASE/rentals/quote" \
+QJSON=$(http_post_json "$BASE/api/v1/rentals/quote" \
   "{\"station_id\":\"$STATION_ID\",\"user_id\":\"$USER_ID\"}")
 QID=$(echo "$QJSON" | python3 -c 'import sys,json; print(json.load(sys.stdin)["quote_id"])')
 IDEMP=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
-SJSON=$(http_post_json "$BASE/rentals/start" \
+SJSON=$(http_post_json "$BASE/api/v1/rentals/start" \
   "{\"quote_id\":\"$QID\"}" \
   "Idempotency-Key: $IDEMP")
 OID=$(echo "$SJSON" | python3 -c 'import sys,json; print(json.load(sys.stdin)["order_id"])')
@@ -37,7 +37,7 @@ sleep "$WAIT"
 
 echo
 echo "== status =="
-STAT=$(http_get_json "$BASE/rentals/${OID}/status")
+STAT=$(http_get_json "$BASE/api/v1/rentals/${OID}/status")
 echo "$STAT" | python3 -m json.tool
 STATUS=$(echo "$STAT" | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')
 

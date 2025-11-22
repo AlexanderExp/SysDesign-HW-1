@@ -25,12 +25,12 @@ EXTERNAL_SERVICE_NAME="${EXTERNAL_SERVICE_NAME:-external-stubs}"
 
 echo
 echo "== health =="
-http_get_json "$BASE/health" >/dev/null
+http_get_json "$BASE/api/v1/health" >/dev/null
 echo "✅ rental-core alive"
 
 echo
 echo "== start rental =="
-QJSON=$(http_post_json "$BASE/rentals/quote" \
+QJSON=$(http_post_json "$BASE/api/v1/rentals/quote" \
   "{\"station_id\":\"$STATION_ID\",\"user_id\":\"$USER_ID\"}")
 echo "$QJSON" | python3 -m json.tool
 
@@ -41,7 +41,7 @@ echo "quote_id=$QID (pph=$PPH, free_min=$FREEMIN)"
 
 IDEMP=$(uuidgen 2>/dev/null || python3 -c 'import uuid; print(uuid.uuid4())')
 
-SJSON=$(http_post_json "$BASE/rentals/start" \
+SJSON=$(http_post_json "$BASE/api/v1/rentals/start" \
   "{\"quote_id\":\"$QID\"}" \
   "Idempotency-Key: $IDEMP")
 echo "$SJSON" | python3 -m json.tool
@@ -116,8 +116,8 @@ while [ "$step" -le "$STEPS" ]; do
 
   # Статус заказа через API
   echo
-  echo "-- /rentals/${OID}/status:"
-  STAT=$(http_get_json "$BASE/rentals/${OID}/status")
+  echo "-- /api/v1/rentals/${OID}/status:"
+  STAT=$(http_get_json "$BASE/api/v1/rentals/${OID}/status")
   echo "$STAT" | python3 -m json.tool
   STATUS=$(echo "$STAT" | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')
 
@@ -147,7 +147,7 @@ IFS=',' read -r ATT_TOTAL ATT_OK AMOUNT_SUM <<<"$(
 DEBT="$(docker compose exec -T db psql -U app -d rental -tA -c \
   "select coalesce((select amount_total from debts where rental_id='${OID}'),0);")"
 
-STAT=$(http_get_json "$BASE/rentals/${OID}/status")
+STAT=$(http_get_json "$BASE/api/v1/rentals/${OID}/status")
 STATUS=$(echo "$STAT" | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')
 
 echo "attempts_total=$ATT_TOTAL, attempts_ok=$ATT_OK, amount_sum=$AMOUNT_SUM, debt=$DEBT, status=$STATUS"

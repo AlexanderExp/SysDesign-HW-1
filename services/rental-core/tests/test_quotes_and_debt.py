@@ -1,7 +1,6 @@
-# services/rental-core/tests/test_quotes_and_debt.py
 import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -14,8 +13,9 @@ from app import main as rc  # noqa: E402
 
 def setup_sqlite(monkeypatch):
     eng = create_engine("sqlite+pysqlite:///:memory:", future=True)
-    Session = sessionmaker(bind=eng, autoflush=False,
-                           autocommit=False, expire_on_commit=False, future=True)
+    Session = sessionmaker(
+        bind=eng, autoflush=False, autocommit=False, expire_on_commit=False, future=True
+    )
     # подменяем SessionLocal
     rc.SessionLocal = Session
     return eng, Session
@@ -56,7 +56,8 @@ def test_attach_deposit_debt(monkeypatch):
 
     with eng.begin() as conn:
         row = conn.execute(
-            text("SELECT rental_id, amount_total FROM debts WHERE rental_id='r1'")).first()
+            text("SELECT rental_id, amount_total FROM debts WHERE rental_id='r1'")
+        ).first()
         assert row is not None
         assert row.amount_total == 200
 
@@ -67,5 +68,6 @@ def test_attach_deposit_debt(monkeypatch):
 
     with eng.begin() as conn:
         row = conn.execute(
-            text("SELECT rental_id, amount_total FROM debts WHERE rental_id='r1'")).first()
+            text("SELECT rental_id, amount_total FROM debts WHERE rental_id='r1'")
+        ).first()
         assert row.amount_total == 250

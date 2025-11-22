@@ -9,12 +9,12 @@ STATION_ID="${STATION_ID:-some-station-id}"
 TICK="${BILLING_TICK_SEC:-10}"
 
 echo "== health =="
-http_get_json "$BASE/health" >/dev/null
+http_get_json "$BASE/api/v1/health" >/dev/null
 echo "✅ rental-core alive"
 
 echo
 echo "== quote =="
-QJSON=$(http_post_json "$BASE/rentals/quote" \
+QJSON=$(http_post_json "$BASE/api/v1/rentals/quote" \
   "{\"station_id\":\"$STATION_ID\",\"user_id\":\"$USER_ID\"}")
 echo "$QJSON" | python3 -m json.tool
 QID=$(echo "$QJSON" | python3 -c 'import sys,json; print(json.load(sys.stdin)["quote_id"])')
@@ -24,7 +24,7 @@ echo "Idempotency-Key: $IDEMP"
 
 echo
 echo "== start =="
-SJSON=$(http_post_json "$BASE/rentals/start" \
+SJSON=$(http_post_json "$BASE/api/v1/rentals/start" \
   "{\"quote_id\":\"$QID\"}" \
   "Idempotency-Key: $IDEMP")
 echo "$SJSON" | python3 -m json.tool
@@ -51,7 +51,7 @@ docker compose exec -T db psql -U app -d rental -c \
 
 echo
 echo "== status =="
-http_get_json "$BASE/rentals/${OID}/status" | python3 -m json.tool
+http_get_json "$BASE/api/v1/rentals/${OID}/status" | python3 -m json.tool
 
 echo
 echo "OK"
