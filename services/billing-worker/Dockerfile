@@ -1,8 +1,14 @@
-FROM python:3.11-slim
-WORKDIR /app
-COPY services/billing-worker/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY services/billing-worker /app
+FROM ghcr.io/astral-sh/uv:python3.11-alpine
+
+WORKDIR /app/services/billing-worker
+
+COPY shared ../../shared
+
+COPY services/billing-worker/pyproject.toml services/billing-worker/uv.lock ./
+
+RUN uv sync --locked
+
+COPY services/billing-worker .
+
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-CMD ["python", "main.py"]
+CMD ["uv", "run", "python", "-m", "billing_worker.main"]

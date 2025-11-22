@@ -1,0 +1,105 @@
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from loguru import logger
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+
+from shared.db.models import Rental
+
+
+class RentalRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def get_by_id(self, rental_id: str) -> Optional[Rental]:
+        return self.session.get(Rental, rental_id)
+
+    def create_rental(self, rental: Rental) -> None:
+        self.session.add(rental)
+        self.session.flush()
+
+    def update_rental(self, rental: Rental) -> None:
+        self.session.merge(rental)
+        self.session.flush()
+
+    def get_active_rental_ids(self) -> List[str]:
+        result = (
+            self.session.execute(select(Rental.id).where(Rental.status == "ACTIVE"))
+            .scalars()
+            .all()
+        )
+        return list(result)
+
+    def update_total_amount(self, rental_id: str, amount_delta: int) -> bool:
+        """Update rental total amount by adding delta.
+
+        Returns:
+            bool: True if rental was found and updated
+        """
+        rental = self.get_by_id(rental_id)
+        if not rental:
+            return False
+
+        old_amount = rental.total_amount or 0
+        rental.total_amount = old_amount + amount_delta
+        logger.debug(
+            f"Updated rental {rental_id} total_amount: {old_amount} -> {rental.total_amount}"
+        )
+        return True
+
+    def finish_rental(self, rental_id: str, status: str = "FINISHED") -> bool:
+        """Finish rental with given status.
+
+        Args:
+            rental_id: Rental ID
+            status: New status (FINISHED, BUYOUT, etc.)
+
+        Returns:
+            bool: True if rental was found and updated
+        """
+        now = datetime.now(timezone.utc)
+        result = self.session.execute(
+            update(Rental)
+            .where(Rental.id == rental_id, Rental.status == "ACTIVE")
+            .values(status=status, finished_at=now)
+        )
+
+        updated = result.rowcount > 0
+        if updated:
+            logger.info(f"Finished rental {rental_id} with status {status}")
+        return updated
+
+    def set_buyout_status(self, rental_id: str) -> bool:
+        """Set rental status to BUYOUT."""
+        return self.finish_rental(rental_id, "BUYOUT")
+
+    def calculate_due_amount(self, rental: Rental, current_time: datetime) -> int:
+        """Calculate amount due for rental based on time elapsed.
+
+        Args:
+            rental: Rental object
+            current_time: Current time to calculate against
+
+        Returns:
+            int: Amount due in cents/kopecks
+        """
+        if not rental.started_at:
+            return 0
+
+        # Ensure timezone awareness
+        start_time = rental.started_at
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+
+        if current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=timezone.utc)
+
+        total_seconds = int((current_time - start_time).total_seconds())
+        free_seconds = rental.free_period_min * 60
+        billable_seconds = max(0, total_seconds - free_seconds)
+
+        # Calculate amount: (price_per_hour * billable_seconds) / 3600
+        due_amount = (rental.price_per_hour * billable_seconds) // 3600
+
+        return due_amount

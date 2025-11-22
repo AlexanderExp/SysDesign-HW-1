@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-
 from datetime import datetime
-
 
 # Содержит в себе DTO (data transfer objects) / данные, получаемые из внешних источников
 

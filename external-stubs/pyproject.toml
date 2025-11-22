@@ -1,0 +1,13 @@
+[project]
+name = "external-stubs"
+version = "0.1.0"
+description = "ExterAdd your description here"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "fastapi~=0.121.3",
+    "pydantic~=2.12.4",
+    "uvicorn~=0.38.0",
+]
+
+[project.optional-dependencies]
+dev = []

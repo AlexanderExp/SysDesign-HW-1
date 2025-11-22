@@ -79,8 +79,8 @@ if [ "$SKIP_BRINGUP" != "1" ]; then
 fi
 
 hdr "health"
-if ! wait_http_200 "$RENTAL_CORE_BASE/health" 45 >/dev/null; then
-  code=$(curl -s -o /dev/null -w "%{http_code}" "$RENTAL_CORE_BASE/health" || true)
+if ! wait_http_200 "$RENTAL_CORE_BASE/api/v1/health" 45 >/dev/null; then
+  code=$(curl -s -o /dev/null -w "%{http_code}" "$RENTAL_CORE_BASE/api/v1/health" || true)
   fail "rental-core not alive ($code)"
   exit 1
 fi

@@ -1,0 +1,64 @@
+[project]
+name = "system-design-hw1"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "requests>=2.32.5",
+    "shared",
+    "psycopg2-binary>=2.9.9",
+    "sqlalchemy>=2.0.0",
+]
+
+[tool.uv.sources]
+shared = { path = "./shared", editable = true }
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "alembic"
+]
+
+[workspace]
+members = [
+    "shared",
+    "external-stubs",
+    "services/billing-worker",
+    "services/rental-core",
+]
+
+[tool.ruff]
+line-length = 88
+exclude = ["doc", "benchmark"]
+
+[tool.ruff.lint]
+select = [
+  "D",
+  "E", "W",
+  "F",
+  "ARG",
+  "I",
+]
+ignore = [
+  "E501",
+  "F821", # jaxtyping
+  "F722",  # jaxtyping
+  "D107",
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D105",
+  "D415",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.isort]
+known-first-party = ["billing_worker", "rental_core"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.per-file-ignores]
+"*tests/*" = ["D", "S101"]
+"__init__.py" = ["D104", "F401"]
