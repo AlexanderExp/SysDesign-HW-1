@@ -5,15 +5,18 @@ TEST_TICK="${BILLING_TICK_SEC:-10}"
 FF_MIN="${FF_MINUTES:-}"
 FORCE="${FORCE_STATUS:-}"
 
+# базовый URL сервиса
+BASE="${RENTAL_CORE_BASE:-http://localhost:8000}"
+
 echo
 echo "== health =="
-code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
+code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/v1/health")
 if [ "$code" != "200" ]; then echo "❌ rental-core не жив ($code)"; exit 1; fi
 echo "✅  rental-core жив (200)"
 
 echo
 echo "== quote =="
-QJSON=$(curl -s -X POST http://localhost:8000/rentals/quote \
+QJSON=$(curl -s -X POST "$BASE/api/v1/rentals/quote" \
   -H 'Content-Type: application/json' \
   -d '{"station_id":"some-station-id","user_id":"u1"}')
 echo "$QJSON" | python3 -m json.tool
@@ -27,7 +30,7 @@ echo "Idempotency-Key: $IDEMP"
 
 echo
 echo "== start (idempotent) =="
-SJSON=$(curl -s -X POST http://localhost:8000/rentals/start \
+SJSON=$(curl -s -X POST "$BASE/api/v1/rentals/start" \
   -H 'Content-Type: application/json' -H "Idempotency-Key: $IDEMP" \
   -d "{\"quote_id\":\"$QID\"}")
 echo "$SJSON" | python3 -m json.tool
@@ -68,7 +71,8 @@ IFS=',' read -r ATT_TOTAL ATT_OK AMOUNT_SUM <<<"$(
 DEBT="$(docker compose exec -T db psql -U app -d rental -tA -c \
   "select coalesce((select amount_total from debts where rental_id='${OID}'),0);")"
 
-printf "attempts_total=%s, attempts_ok=%s, amount_sum=%s, debt=%s\n" "$ATT_TOTAL" "$ATT_OK" "$AMOUNT_SUM" "$DEBT"
+printf "attempts_total=%s, attempts_ok=%s, amount_sum=%s, debt=%s\n" \
+  "${ATT_TOTAL:-0}" "${ATT_OK:-0}" "${AMOUNT_SUM:-0}" "${DEBT:-0}"
 
 # считаем ожидаемую сумму
 EXPECTED="$(python3 - <<PY
@@ -88,19 +92,25 @@ PY
 echo "expected_amount=$EXPECTED (pph=$PPH, ff=${FF_MIN:-0}, free=$FREEMIN)"
 
 # проверяем инварианты
-if [ "${ATT_OK:-0}" -lt 1 ]; then
-  echo "❌ ожидали >=1 успешной попытки списания"; exit 1
+
+# 1) если ожидаемая сумма > 0, должна быть хотя бы одна успешная попытка
+if [ "${EXPECTED:-0}" -gt 0 ] && [ "${ATT_OK:-0}" -lt 1 ]; then
+  echo "❌ ожидали >=1 успешной попытки списания при expected_amount>0"; exit 1
 fi
+
+# 2) сумма попыток должна совпадать с ожидаемой
 if [ "${AMOUNT_SUM:-0}" -ne "${EXPECTED:-0}" ]; then
-  echo "❌ amount_sum=${AMOUNT_SUM} != expected=${EXPECTED}"; exit 1
+  echo "❌ amount_sum=${AMOUNT_SUM:-0} != expected=${EXPECTED:-0}"; exit 1
 fi
+
+# 3) долг должен быть 0
 if [ "${DEBT:-0}" -ne 0 ]; then
-  echo "❌ debt должен быть 0, сейчас ${DEBT}"; exit 1
+  echo "❌ debt должен быть 0, сейчас ${DEBT:-0}"; exit 1
 fi
 
 echo
 echo "== status =="
-STATUS_JSON=$(curl -s "http://localhost:8000/rentals/${OID}/status" | python3 -m json.tool)
+STATUS_JSON=$(curl -s "$BASE/api/v1/rentals/${OID}/status" | python3 -m json.tool)
 echo "$STATUS_JSON"
 TOTAL_AMOUNT=$(echo "$STATUS_JSON" | python3 -c 'import sys,json; print(int(json.load(sys.stdin)["total_amount"]))' 2>/dev/null || echo 0)
 if [ "$TOTAL_AMOUNT" -ne "$EXPECTED" ]; then
