@@ -8,12 +8,12 @@ USER_ID="${USER_ID:-u1}"
 STATION_ID="${STATION_ID:-some-station-id}"
 
 echo "== health =="
-http_get_json "$BASE/health" >/dev/null
+http_get_json "$BASE/api/v1/health" >/dev/null
 echo "✅ rental-core alive"
 
 echo
 echo "== fresh quote =="
-QJSON=$(http_post_json "$BASE/rentals/quote" \
+QJSON=$(http_post_json "$BASE/api/v1/rentals/quote" \
   "{\"station_id\":\"$STATION_ID\",\"user_id\":\"$USER_ID\"}")
 echo "$QJSON" | python3 -m json.tool
 QID=$(echo "$QJSON" | python3 -c 'import sys,json; print(json.load(sys.stdin)["quote_id"])')
@@ -27,7 +27,7 @@ docker compose exec -T db psql -U app -d rental -c \
 echo
 echo "== start with expired quote -> expect 4xx =="
 set +e
-resp=$(curl -sS -w $'\n%{http_code}' -X POST "$BASE/rentals/start" \
+resp=$(curl -sS -w $'\n%{http_code}' -X POST "$BASE/api/v1/rentals/start" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen 2>/dev/null || python3 - <<<'import uuid; print(uuid.uuid4())')" \
   -d "{\"quote_id\":\"${QID}\"}")

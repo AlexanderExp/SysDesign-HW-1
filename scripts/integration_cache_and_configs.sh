@@ -22,7 +22,7 @@ wait_http_200() {
 barrier_now(){ TS="$(date -u +"%Y-%m-%dT%H:%M:%S")"; sleep 1; }
 count_in_ext_logs(){ docker compose logs external-stubs --since "$TS" 2>/dev/null | grep -a -cE "$1" || true; }
 quote_once(){
-  curl -s -X POST "$RC_BASE/rentals/quote" -H 'Content-Type: application/json' \
+  curl -s -X POST "$RC_BASE/api/v1/rentals/quote" -H 'Content-Type: application/json' \
     -d "{\"station_id\":\"$STATION_ID\",\"user_id\":\"$USER_ID\"}" >/dev/null
 }
 
@@ -33,7 +33,7 @@ ok "docker services are up (requested)"
 
 # --- health ---
 banner "health"
-wait_http_200 "$RC_BASE/health" 40 && ok "rental-core alive (200)" || { fail "rental-core not healthy"; exit 1; }
+wait_http_200 "$RC_BASE/api/v1/health" 40 && ok "rental-core alive (200)" || { fail "rental-core not healthy"; exit 1; }
 wait_http_200 "http://localhost:3629/configs" 20 && ok "external-stubs responds on /configs" || { fail "external-stubs /configs"; exit 1; }
 
 # --- determine effective TTL/refresh from container ---
