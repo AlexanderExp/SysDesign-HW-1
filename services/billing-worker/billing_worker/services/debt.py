@@ -23,12 +23,17 @@ class DebtService:
         self._rental_repo = rental_repo
         self._external_client = external_client
         self._debt_retry_base_sec = settings.debt_retry_base_sec
+        self._debt_retry_max_sec = settings.debt_retry_max_sec
         self._debt_charge_step = settings.debt_charge_step
 
     def calculate_backoff_seconds(self, attempts: int) -> int:
-        """Calculate backoff window in seconds using exponential backoff."""
+        """Calculate backoff window in seconds using exponential backoff.
+        
+        Formula: base * 2^attempts, capped at max
+        Example: 60 * 2^0=60s, 60 * 2^1=120s, 60 * 2^2=240s, ...
+        """
         window = self._debt_retry_base_sec * (2 ** min(attempts, 8))
-        return min(window, self._debt_retry_base_sec)
+        return min(window, self._debt_retry_max_sec)
 
     def try_collect_historical_debt(self, rental_id: str) -> tuple[int, int]:
         """Try to collect historical debt with exponential backoff.

@@ -27,8 +27,6 @@ def get_session(settings: Settings = Depends(get_settings)) -> Session:
     sessionmaker = get_sessionmaker(settings)
     session = sessionmaker()
     try:
-        bind = session.get_bind()
-        Base.metadata.create_all(bind=bind)
         yield session
     finally:
         session.close()
