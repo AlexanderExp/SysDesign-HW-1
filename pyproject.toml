@@ -16,7 +16,8 @@ shared = { path = "./shared", editable = true }
 [dependency-groups]
 dev = [
     "ruff",
-    "alembic"
+    "alembic",
+    "pytest>=9.0.1",
 ]
 
 [workspace]
