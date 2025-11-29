@@ -319,7 +319,7 @@
     <div class="container">
         <div class="header">
             <h1>🔋 Демо: Система аренды пауэрбанков</h1>
-            <p>Команда 8 | X=10 RPS, Y=10, Z=1KB | Интерактивная демонстрация работы системы</p>
+            <p>Команда 8 | X=10 RPS, Y=10, Z=1KB | Интерактивная демонстрация работы системы + управление эндпоинтами</p>
         </div>
 
         <div class="main-content">
@@ -413,6 +413,41 @@
                 <div id="stopResult" class="status-card" style="display: none;"></div>
             </div>
 
+            <!-- Панель управления эндпоинтами -->
+            <div class="panel">
+                <h2>⚙️ Управление эндпоинтами</h2>
+                <div class="info-box">
+                    Включайте/выключайте эндпоинты для тестирования отказоустойчивости
+                </div>
+                <div class="form-group">
+                    <label>Эндпоинт</label>
+                    <select id="endpointSelect">
+                        <option value="station-data">station-data</option>
+                        <option value="tariff">tariff</option>
+                        <option value="user-profile">user-profile</option>
+                        <option value="configs">configs</option>
+                        <option value="eject-powerbank">eject-powerbank</option>
+                        <option value="hold-money-for-order">hold-money-for-order</option>
+                        <option value="clear-money-for-order">clear-money-for-order</option>
+                    </select>
+                </div>
+                <div class="quick-actions">
+                    <button class="btn btn-danger" onclick="disableEndpoint()">
+                        🔴 Отключить
+                    </button>
+                    <button class="btn btn-success" onclick="enableEndpoint()">
+                        🟢 Включить
+                    </button>
+                </div>
+                <button class="btn btn-info" onclick="getEndpointStatus()" style="margin-top: 10px;">
+                    📊 Статус всех эндпоинтов
+                </button>
+                <button class="btn btn-primary" onclick="resetAllEndpoints()" style="margin-top: 5px;">
+                    🔄 Сбросить все
+                </button>
+                <div id="endpointStatus" class="status-card" style="display: none;"></div>
+            </div>
+
             <!-- Панель логов -->
             <div class="panel logs-panel">
                 <h2>📋 Логи запросов и ответов</h2>
@@ -429,6 +464,7 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
+        const EXTERNAL_BASE = 'http://localhost:3629';
         let autoRefreshInterval = null;
 
         // Генерация UUID для idempotency key
@@ -687,6 +723,7 @@
                     
                     // Рассчитываем итоговую стоимость
                     const finalCost = data.total_amount + data.debt;
+                    const depositRefund = data.deposit_refund || 0;
                     
                     resultDiv.innerHTML = `
                         <div class="status-row">
@@ -709,10 +746,122 @@
                             <span class="status-label">└─ Долг:</span>
                             <span class="status-value" style="color: ${data.debt > 0 ? '#f56565' : '#48bb78'};">${data.debt} ₽</span>
                         </div>
+                        <div class="status-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e0e0e0;">
+                            <span class="status-label">💵 Возврат депозита:</span>
+                            <span class="status-value" style="font-size: 16px; font-weight: bold; color: #48bb78;">${depositRefund} ₽</span>
+                        </div>
                     `;
                     
                     // Останавливаем авто-обновление
                     stopAutoRefresh();
+                }
+            } catch (error) {
+                addLog('error', 'POST', url, null, null, error.message);
+            }
+        }
+
+        // Управление эндпоинтами
+        async function disableEndpoint() {
+            const endpoint = document.getElementById('endpointSelect').value;
+            const url = `${EXTERNAL_BASE}/admin/disable-endpoint`;
+            const requestData = { endpoint: endpoint, disabled: true };
+            
+            addLog('request', 'POST', url, null, requestData);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                addLog('response', 'POST', url, response.status, data);
+                
+                if (response.ok) {
+                    await getEndpointStatus();
+                }
+            } catch (error) {
+                addLog('error', 'POST', url, null, null, error.message);
+            }
+        }
+
+        async function enableEndpoint() {
+            const endpoint = document.getElementById('endpointSelect').value;
+            const url = `${EXTERNAL_BASE}/admin/disable-endpoint`;
+            const requestData = { endpoint: endpoint, disabled: false };
+            
+            addLog('request', 'POST', url, null, requestData);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                addLog('response', 'POST', url, response.status, data);
+                
+                if (response.ok) {
+                    await getEndpointStatus();
+                }
+            } catch (error) {
+                addLog('error', 'POST', url, null, null, error.message);
+            }
+        }
+
+        async function getEndpointStatus() {
+            const url = `${EXTERNAL_BASE}/admin/status`;
+            
+            addLog('request', 'GET', url, null, null);
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                addLog('response', 'GET', url, response.status, data);
+                
+                if (response.ok) {
+                    const resultDiv = document.getElementById('endpointStatus');
+                    resultDiv.style.display = 'block';
+                    
+                    let endpointsHtml = '';
+                    for (const endpoint of data.available_endpoints) {
+                        const isDisabled = data.disabled_endpoints[endpoint] || false;
+                        const statusColor = isDisabled ? '#f56565' : '#48bb78';
+                        const statusText = isDisabled ? '🔴 Отключен' : '🟢 Включен';
+                        
+                        endpointsHtml += `
+                            <div class="status-row">
+                                <span class="status-label">${endpoint}:</span>
+                                <span class="status-value" style="color: ${statusColor};">${statusText}</span>
+                            </div>
+                        `;
+                    }
+                    
+                    resultDiv.innerHTML = endpointsHtml;
+                }
+            } catch (error) {
+                addLog('error', 'GET', url, null, null, error.message);
+            }
+        }
+
+        async function resetAllEndpoints() {
+            const url = `${EXTERNAL_BASE}/admin/reset-all`;
+            
+            addLog('request', 'POST', url, null, null);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                addLog('response', 'POST', url, response.status, data);
+                
+                if (response.ok) {
+                    await getEndpointStatus();
                 }
             } catch (error) {
                 addLog('error', 'POST', url, null, null, error.message);
@@ -730,6 +879,13 @@
             } catch (error) {
                 addLog('error', 'GET', `${API_BASE}/api/v1/health`, null, null, 
                     'API недоступен. Убедитесь, что rental-core запущен на порту 8000');
+            }
+            
+            // Загружаем статус эндпоинтов
+            try {
+                await getEndpointStatus();
+            } catch (error) {
+                // Игнорируем ошибку, если external stubs не запущены
             }
         });
     </script>
