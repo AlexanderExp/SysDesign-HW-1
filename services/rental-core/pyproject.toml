@@ -15,6 +15,7 @@ dependencies = [
     "psycopg2-binary~=2.9.9",
     "redis~=7.1.0",
     "loguru>=0.7.3",
+    "pybreaker~=1.0.2",
     "shared",
 ]
 

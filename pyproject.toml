@@ -19,6 +19,7 @@ dev = [
     "alembic>=1.17.2",
     "pytest>=9.0.1",
     "pytest-watch>=4.2.0",
+    "pybreaker>=1.4.1",
 ]
 
 [workspace]
