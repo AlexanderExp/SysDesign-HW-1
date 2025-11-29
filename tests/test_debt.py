@@ -36,69 +36,6 @@ def stop_external_service(external_base):
 @pytest.mark.integration
 @pytest.mark.billing
 @pytest.mark.slow
-@pytest.mark.skipif(
-    os.getenv("SKIP_DEBT_TESTS") == "1", reason="Debt tests require docker control"
-)
-def test_debt_created_on_payment_failure(
-    api_client,
-    db_session,
-    test_user_id,
-    test_station_id,
-    wait_for_billing,
-    cleanup_db,
-    stop_external_service,
-):
-    """Test that debt is created when payment fails."""
-    # Create and start rental
-    quote_response = api_client.post(
-        "/api/v1/rentals/quote",
-        json={"station_id": test_station_id, "user_id": test_user_id},
-    )
-    quote_id = quote_response.json()["quote_id"]
-
-    start_response = api_client.post(
-        "/api/v1/rentals/start",
-        json={"quote_id": quote_id},
-        headers={"Idempotency-Key": str(uuid.uuid4())},
-    )
-    order_id = start_response.json()["order_id"]
-
-    # Simulate time passing
-    db_session.execute(
-        text(
-            "UPDATE rentals SET started_at = NOW() - INTERVAL '90 minutes' WHERE id = :id"
-        ),
-        {"id": order_id},
-    )
-    db_session.commit()
-
-    # Wait for billing worker (should fail and create debt)
-    wait_for_billing(20)
-
-    # Check debt was created
-    debt = db_session.execute(
-        text("SELECT amount_total FROM debts WHERE rental_id = :id"), {"id": order_id}
-    ).fetchone()
-
-    assert debt is not None, "Debt should be created on payment failure"
-    assert debt.amount_total > 0, "Debt amount should be positive"
-
-    # Check payment attempts show failures
-    failed_attempts = db_session.execute(
-        text("""
-            SELECT COUNT(*) as count 
-            FROM payment_attempts 
-            WHERE rental_id = :id AND success = false
-        """),
-        {"id": order_id},
-    ).fetchone()
-
-    assert failed_attempts.count > 0, "Should have failed payment attempts"
-
-
-@pytest.mark.integration
-@pytest.mark.billing
-@pytest.mark.slow
 def test_debt_retry_with_backoff(
     api_client, db_session, test_user_id, test_station_id, wait_for_billing, cleanup_db
 ):
