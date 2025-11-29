@@ -28,16 +28,22 @@ uv python install 3.11 --default
 ```bash
 uv sync
 ```
+Применение миграций (две отдельные БД):
+
+```bash
+# 1. Поднять только базы (без сервисов)
+docker compose up -d db-rental db-billing
+
+# 2. Миграции основной БД (rental)
+uv run alembic -c alembic_rental.ini upgrade head
+
+# 3. Миграции биллинга
+uv run alembic -c alembic_billing.ini upgrade head
+```
 
 Запуск сервисов:
 ```bash
 docker compose up -d
-```
-
-Применение миграций:
-```bash
-docker compose up -d db
-uv run alembic upgrade head
 ```
 
 ## Разработка
@@ -45,7 +51,8 @@ uv run alembic upgrade head
 ### Сервисы
 
 - **rental-core**: http://localhost:8000
-- **PostgreSQL**: localhost:5432
+- **PostgreSQL (rental-db)**: localhost:5433 (service: `db-rental`)  
+- **PostgreSQL (billing-db)**: localhost:5434 (service: `db-billing`)
 - **Redis**: localhost:6379
 - **External stubs**: localhost:3629
 
@@ -67,5 +74,6 @@ make down            # Остановка сервисов
 make logs            # Просмотр логов
 make restart         # Перезапуск основных сервисов
 make test-all        # Запуск тестов с подъемом сервисов
+make migrate-all     # Запуск миграций
 ```
 

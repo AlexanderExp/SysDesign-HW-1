@@ -102,6 +102,7 @@ def _get_rental_status(db_session, rental_id: str) -> str:
 def test_periodic_billing_produces_successful_charges(
     api_client,
     db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
@@ -127,8 +128,8 @@ def test_periodic_billing_produces_successful_charges(
         _rewind_started_at(db_session, rental_id, minutes)
         wait_for_billing(wait_seconds)
 
-    stats = _get_payment_stats(db_session, rental_id)
-    debt = _get_debt_amount(db_session, rental_id)
+    stats = _get_payment_stats(billing_db_session, rental_id)
+    debt = _get_debt_amount(billing_db_session, rental_id)
 
     assert stats["attempts_ok"] >= 1, "Должна быть хотя бы одна успешная попытка"
     assert stats["amount_sum"] > 0, "Сумма успешных списаний должна быть > 0"
@@ -142,6 +143,7 @@ def test_periodic_billing_produces_successful_charges(
 def test_buyout_paid_only_stops_new_charges(
     api_client,
     db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
@@ -164,8 +166,8 @@ def test_buyout_paid_only_stops_new_charges(
     _rewind_started_at(db_session, rental_id, minutes=180)
     wait_for_billing(wait_seconds * 2)
 
-    stats_before = _get_payment_stats(db_session, rental_id)
-    debt_before = _get_debt_amount(db_session, rental_id)
+    stats_before = _get_payment_stats(billing_db_session, rental_id)
+    debt_before = _get_debt_amount(billing_db_session, rental_id)
     status_before = _get_rental_status(db_session, rental_id)
 
     assert stats_before["amount_sum"] > 0, "К моменту buyout что-то должно быть списано"
@@ -177,8 +179,8 @@ def test_buyout_paid_only_stops_new_charges(
     # Дополнительное ожидание: после buyout не должно добавляться попыток/сумм
     wait_for_billing(wait_seconds * 2)
 
-    stats_after = _get_payment_stats(db_session, rental_id)
-    debt_after = _get_debt_amount(db_session, rental_id)
+    stats_after = _get_payment_stats(billing_db_session, rental_id)
+    debt_after = _get_debt_amount(billing_db_session, rental_id)
     status_after = _get_rental_status(db_session, rental_id)
 
     assert stats_after["attempts_total"] == stats_before["attempts_total"], (
@@ -197,6 +199,7 @@ def test_buyout_paid_only_stops_new_charges(
 def test_buyout_with_existing_debt_collected_and_stops(
     api_client,
     db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
@@ -220,11 +223,11 @@ def test_buyout_with_existing_debt_collected_and_stops(
     wait_for_billing(wait_seconds * 2)
 
     # Снимем начальные показатели
-    stats_initial = _get_payment_stats(db_session, rental_id)
+    stats_initial = _get_payment_stats(billing_db_session, rental_id)
 
     # Вручную добавляем долг (как будто несколько биллингов не смогли списать)
     initial_debt_amount = 150
-    db_session.execute(
+    billing_db_session.execute(
         text(
             """
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts)
@@ -236,16 +239,16 @@ def test_buyout_with_existing_debt_collected_and_stops(
         ),
         {"id": rental_id, "amount": initial_debt_amount},
     )
-    db_session.commit()
+    billing_db_session.commit()
 
-    debt_before = _get_debt_amount(db_session, rental_id)
+    debt_before = _get_debt_amount(billing_db_session, rental_id)
     assert debt_before >= initial_debt_amount
 
     # Даём биллингу время попытаться забрать долг
     wait_for_billing(wait_seconds * 3)
 
-    stats_after = _get_payment_stats(db_session, rental_id)
-    debt_after = _get_debt_amount(db_session, rental_id)
+    stats_after = _get_payment_stats(billing_db_session, rental_id)
+    debt_after = _get_debt_amount(billing_db_session, rental_id)
     status_after = _get_rental_status(db_session, rental_id)
 
     # Долг должен уменьшиться или обнулиться
@@ -260,8 +263,8 @@ def test_buyout_with_existing_debt_collected_and_stops(
     # Дополнительно убеждаемся, что после buyout paid/debt больше не трогаются
     wait_for_billing(wait_seconds * 2)
 
-    stats_final = _get_payment_stats(db_session, rental_id)
-    debt_final = _get_debt_amount(db_session, rental_id)
+    stats_final = _get_payment_stats(billing_db_session, rental_id)
+    debt_final = _get_debt_amount(billing_db_session, rental_id)
     status_final = _get_rental_status(db_session, rental_id)
 
     assert stats_final["attempts_total"] == stats_after["attempts_total"], (

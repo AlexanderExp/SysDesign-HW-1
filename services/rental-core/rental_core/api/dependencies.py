@@ -7,7 +7,10 @@ from sqlalchemy.orm import Session
 from rental_core.clients.external import ExternalClient
 from rental_core.config.settings import Settings
 from rental_core.core.exceptions import idempotency_key_missing_exception
-from rental_core.db.database import get_sessionmaker
+from rental_core.db.database import (
+    get_sessionmaker,
+    get_billing_sessionmaker,
+)
 from rental_core.db.repositories.debt import DebtRepository
 from rental_core.db.repositories.idempotency import IdempotencyRepository
 from rental_core.db.repositories.quote import QuoteRepository
@@ -17,13 +20,22 @@ from rental_core.services.quote import QuoteService
 from rental_core.services.rental import RentalService
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     return Settings()
 
 
 def get_session(settings: Settings = Depends(get_settings)) -> Session:
     sessionmaker = get_sessionmaker(settings)
+    session = sessionmaker()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def get_billing_session(settings: Settings = Depends(get_settings)) -> Session:
+    sessionmaker = get_billing_sessionmaker(settings)
     session = sessionmaker()
     try:
         yield session
@@ -43,7 +55,9 @@ def get_rental_repository(session: Session = Depends(get_session)) -> RentalRepo
     return RentalRepository(session)
 
 
-def get_debt_repository(session: Session = Depends(get_session)) -> DebtRepository:
+def get_debt_repository(
+    session: Session = Depends(get_billing_session),
+) -> DebtRepository:
     return DebtRepository(session)
 
 
@@ -79,12 +93,12 @@ def get_rental_service(
 ) -> RentalService:
     external_client = request.app.state.external_client
     return RentalService(
-        rental_repo,
-        debt_repo,
-        idempotency_repo,
-        quote_service,
-        payment_service,
-        external_client,
+        rental_repo=rental_repo,
+        debt_repo=debt_repo,
+        idempotency_repo=idempotency_repo,
+        quote_service=quote_service,
+        payment_service=payment_service,
+        external_client=external_client,
     )
 
 

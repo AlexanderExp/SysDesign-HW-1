@@ -135,8 +135,12 @@ def test_debt_collection_success(
 
 @pytest.mark.integration
 def test_debt_visible_in_status(
-    api_client, db_session, test_user_id, test_station_id, cleanup_db
-):
+    api_client,
+    db_session,
+    billing_db_session,
+    test_user_id,
+    test_station_id,
+    cleanup_db,):
     """Test that debt is visible in rental status."""
     # Create rental
     quote_response = api_client.post(
@@ -153,14 +157,14 @@ def test_debt_visible_in_status(
     order_id = start_response.json()["order_id"]
 
     # Manually add debt
-    db_session.execute(
+    billing_db_session.execute(
         text("""
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts)
             VALUES (:id, 150, NOW(), 0)
         """),
         {"id": order_id},
     )
-    db_session.commit()
+    billing_db_session.commit()
 
     # Check status includes debt
     status = api_client.get(f"/api/v1/rentals/{order_id}/status")

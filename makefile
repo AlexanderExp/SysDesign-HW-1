@@ -62,3 +62,11 @@ test-ci: up
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	uv run pytest tests/ -v --cov=services --cov-report=xml
+
+migrate-rental:
+	uv run alembic -c alembic_rental.ini upgrade head
+
+migrate-billing:
+	uv run alembic -c alembic_billing.ini upgrade head
+
+migrate-all: migrate-rental migrate-billing

@@ -1,11 +1,11 @@
 services:
-  db:
-    image: postgres:18
+  db-rental:
+    image: postgres:17
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - "pgdata:/var/lib/postgresql"
+      - "pgdata_rental:/var/lib/postgresql/data"
     environment:
       POSTGRES_DB: rental
       POSTGRES_USER: app
@@ -14,8 +14,24 @@ services:
       test: ["CMD-SHELL", "pg_isready -U app -d rental"]
       interval: 2s
       timeout: 1s
-      retries: 15
-      start_period: 3s
+      retries: 10
+
+  db-billing:
+    image: postgres:17
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    volumes:
+      - "pgdata_billing:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_DB: billing
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d billing"]
+      interval: 2s
+      timeout: 1s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -30,30 +46,31 @@ services:
     ports:
       - "3629:3629"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3629/configs')"]
+      test:
+        ["CMD", "python", "-c",
+         "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3629/configs')"]
       interval: 2s
       timeout: 1s
-      retries: 15
-      start_period: 3s
+      retries: 10
 
   rental-core:
     build:
       context: .
       dockerfile: ./services/rental-core/Dockerfile
     restart: unless-stopped
-    ports:
-      - "8000:8000"
-    environment:
-      EXTERNAL_BASE: http://external-stubs:3629
-      DATABASE_URL: postgresql+psycopg2://app:app@db:5432/rental
-      REDIS_URL: redis://redis:6379/0
     env_file:
       - .env
+    ports:
+      - "8000:8000"
     depends_on:
-      db:
+      db-rental:
+        condition: service_healthy
+      db-billing:
         condition: service_healthy
       external-stubs:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   billing-worker:
     build:
@@ -63,10 +80,12 @@ services:
     env_file:
       - .env
     depends_on:
-      db:
+      db-billing:
         condition: service_healthy
       external-stubs:
         condition: service_healthy
 
 volumes:
-  pgdata:
+  pgdata_rental:
+  pgdata_billing:
+
