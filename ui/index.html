@@ -608,7 +608,7 @@
                     if (data.status === 'FINISHED') statusClass = 'finished';
                     if (data.status === 'BUYOUT') statusClass = 'buyout';
                     
-                    // Рассчитываем общую стоимость поездки
+                    // Рассчитываем общую стоимость аренды
                     const totalCost = data.total_amount + data.debt;
                     
                     resultDiv.innerHTML = `
@@ -621,7 +621,7 @@
                             <span class="status-value ${statusClass}">${data.status}</span>
                         </div>
                         <div class="status-row">
-                            <span class="status-label">💰 Стоимость поездки:</span>
+                            <span class="status-label">💰 Стоимость аренды:</span>
                             <span class="status-value" style="font-size: 16px; font-weight: bold;">${totalCost} ₽</span>
                         </div>
                         <div class="status-row">
