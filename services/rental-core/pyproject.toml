@@ -18,5 +18,13 @@ dependencies = [
     "shared",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]
+
+[tool.uv]
+package = true
+
 [tool.uv.sources]
 shared = { path = "../../shared" }
