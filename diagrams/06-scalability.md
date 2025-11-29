@@ -70,58 +70,59 @@ graph TB
     style RD fill:#dc382d,stroke:#333,stroke-width:2px,color:#fff
 ```
 
-## Расчет нагрузки
+## Считаем нагрузку
 
-### HTTP запросы
+### Сколько запросов летит в API
 
-**Write операции:**
+**Запросы на запись:**
 ```
-POST /rentals/quote:  ~10 RPS (X)
-POST /rentals/start:  ~10 RPS (X)
-POST /rentals/stop:   ~10 RPS (равномерно распределено)
+POST /rentals/quote:  ~10 RPS (пользователи создают офферы)
+POST /rentals/start:  ~10 RPS (начинают аренду)
+POST /rentals/stop:   ~10 RPS (возвращают банки)
 -----------------------------------
 Итого write:          ~30 RPS
 ```
 
-**Read операции:**
+**Запросы на чтение:**
 ```
 GET /rentals/{id}/status: Y / 60 = 10 / 60 ≈ 0.17 RPS
+(каждый пользователь смотрит статус 10 раз за всю аренду)
 ```
 
-**Итого:** ~30 RPS write + 0.2 RPS read = **30.2 RPS**
+**Всего:** ~30 RPS write + 0.2 RPS read = **30.2 RPS** (легкая нагрузка)
 
-### Нагрузка на БД
+### Что происходит с базой данных
 
-**На один /start (10 RPS):**
-- 1 SELECT (проверка idempotency_key)
-- 1 SELECT (загрузка quote)
-- 1 DELETE (поглощение quote)
-- 1 INSERT (создание rental)
-- 1 INSERT (idempotency_key)
-- 0-1 INSERT (debt, если платеж не прошел)
+**Один запрос /start делает:**
+- 1 SELECT - проверяем, не дубликат ли (idempotency_key)
+- 1 SELECT - достаем оффер
+- 1 DELETE - удаляем использованный оффер
+- 1 INSERT - создаем аренду
+- 1 INSERT - сохраняем idempotency_key
+- 0-1 INSERT - если платеж не прошел, создаем долг
 
-**Итого:** ~50-60 операций/сек для write
+**Итого:** ~50-60 запросов в БД в секунду (легко)
 
-**Billing-worker (каждые 30 сек):**
-- 1 SELECT (список активных аренд)
-- N × 3 SELECT (для каждой аренды: rental, payments, debts)
-- N × 1-2 INSERT/UPDATE (payment_attempt, debt/rental)
+**Billing-worker работает каждые 30 секунд:**
+- 1 SELECT - берем все активные аренды
+- N × 3 SELECT - для каждой аренды читаем rental, payments, debts
+- N × 1-2 INSERT/UPDATE - записываем payment_attempt и обновляем rental/debt
 
-**При 100 активных арендах:** ~600 операций каждые 30 сек = **20 операций/сек**
+**Если активных аренд 100:** ~600 операций каждые 30 сек = **20 операций/сек**
 
-**Итого БД:** ~80 операций/сек
+**Итого нагрузка на БД:** ~80 операций/сек (PostgreSQL переживет)
 
-### Хранение данных
+### Сколько места займет в базе
 
-**За час (X = 10 RPS):**
+**За час работы (X = 10 RPS):**
 ```
-10 RPS × 3600 сек = 36,000 аренд
-36,000 × 1 KB = 36 MB
+10 аренд/сек × 3600 сек = 36,000 аренд
+36,000 × 1 KB = 36 MB (почти ничего)
 ```
 
 **За сутки:**
 ```
-864,000 аренд × 1 KB ≈ 864 MB
+864,000 аренд × 1 KB ≈ 864 MB (меньше гигабайта)
 ```
 
 **За месяц:**
@@ -129,51 +130,53 @@ GET /rentals/{id}/status: Y / 60 = 10 / 60 ≈ 0.17 RPS
 ~25,000,000 аренд × 1 KB ≈ 25 GB
 ```
 
-**С учетом payment_attempts и debts:**
+**С учетом всех попыток платежей и долгов:**
 ```
-25 GB × 1.5 ≈ 37.5 GB/месяц
+25 GB × 1.5 ≈ 37.5 GB/месяц (влезет на обычный SSD)
 ```
 
-## Стратегии масштабирования
+Вывод: при X=10 RPS места нужно мало, можно годами не чистить.
 
-### 1. rental-core (Stateless)
+## Как масштабировать, если нагрузка вырастет
 
-**Характеристики:**
-- ✅ Не хранит состояние между запросами
-- ✅ Идемпотентность через БД
-- ✅ Можно масштабировать горизонтально
+### 1. rental-core (легко масштабируется)
 
-**Масштабирование:**
+**Почему легко:**
+- ✅ Не хранит состояние - каждый запрос независим
+- ✅ Идемпотентность через БД, а не в памяти
+- ✅ Можно просто запустить больше копий
+
+**Как добавить инстансов:**
 ```yaml
 # docker-compose.yml
 rental-core:
   deploy:
-    replicas: 3  # Увеличить при росте X
+    replicas: 3  # Было 1, стало 3 - втрое больше мощности
 ```
 
-**Load Balancing:**
-- nginx с round-robin
-- AWS ALB / GCP Load Balancer
-- Kubernetes Service
+**Load Balancer на выбор:**
+- nginx с round-robin (самое простое)
+- AWS ALB / GCP Load Balancer (если в облаке)
+- Kubernetes Service (если на k8s)
 
-**Метрики для масштабирования:**
-- CPU > 70% → добавить реплику
-- Latency p95 > 500ms → добавить реплику
-- RPS на инстанс > 50 → добавить реплику
+**Когда пора масштабировать:**
+- CPU > 70% → добавляем инстанс
+- Latency p95 > 500ms → добавляем инстанс
+- RPS на один инстанс > 50 → добавляем инстанс
 
 ---
 
-### 2. billing-worker (Stateful)
+### 2. billing-worker (сложнее масштабируется)
 
-**Характеристики:**
-- ⚠️ Обрабатывает активные аренды
-- ⚠️ Нужна координация между воркерами
+**Проблема:**
+- ⚠️ Нельзя просто запустить 10 копий - они будут обрабатывать одни и те же аренды
+- ⚠️ Нужна координация, чтобы не списать деньги дважды
 
-**Стратегия 1: Шардирование по rental_id**
+**Вариант 1: Шардирование по rental_id**
 ```python
-# Worker 1 обрабатывает rental_id % 3 == 0
-# Worker 2 обрабатывает rental_id % 3 == 1
-# Worker 3 обрабатывает rental_id % 3 == 2
+# Worker 1 берет аренды, где rental_id % 3 == 0
+# Worker 2 берет аренды, где rental_id % 3 == 1
+# Worker 3 берет аренды, где rental_id % 3 == 2
 
 def get_active_rental_ids(self, shard_id: int, total_shards: int):
     return [
@@ -181,8 +184,9 @@ def get_active_rental_ids(self, shard_id: int, total_shards: int):
         if hash(r_id) % total_shards == shard_id
     ]
 ```
+Плюс: легко реализовать. Минус: нужно перезапускать все воркеры при изменении их числа.
 
-**Стратегия 2: Временное разделение**
+**Вариант 2: Работаем по очереди**
 ```python
 # Worker 1 работает в 00:00, 00:02, 00:04...
 # Worker 2 работает в 00:01, 00:03, 00:05...
@@ -196,134 +200,140 @@ while True:
         process_all_rentals()
     time.sleep(30)
 ```
+Плюс: простота. Минус: воркеры простаивают.
 
-**Стратегия 3: Leader Election (для production)**
+**Вариант 3: Leader Election (для прода)**
 ```python
-# Используя Redis или etcd
-# Только один worker активен, остальные в standby
+# Используем Redis или etcd
+# Один воркер активен, остальные в standby на случай падения
 ```
+Плюс: надежность. Минус: сложность реализации.
 
 ---
 
-### 3. PostgreSQL
+### 3. PostgreSQL (база данных)
 
-**Вертикальное масштабирование:**
-- Увеличить CPU/RAM
-- SSD вместо HDD
-- Оптимизация параметров (shared_buffers, work_mem)
+**Вертикальное масштабирование (проще всего):**
+- Купить сервер помощнее (больше CPU/RAM)
+- Поставить SSD вместо HDD (в разы быстрее)
+- Подкрутить настройки (shared_buffers, work_mem)
 
-**Горизонтальное масштабирование:**
+**Горизонтальное масштабирование (если вертикальное не помогло):**
 ```
-Master (Write) → Replicas (Read)
+Master (пишем) → Replicas (читаем)
 ```
 
-**Разделение нагрузки:**
+**Как разделить нагрузку:**
 ```python
-# Write в master
+# Запись всегда в master
 rental_repo.create_rental(rental)  # → Master
 
-# Read из replica
+# Чтение можно из реплики
 rental_repo.get_rental_status(order_id)  # → Replica
 ```
 
-**Индексы:**
+**Обязательные индексы (без них будет медленно):**
 ```sql
 CREATE INDEX idx_rentals_status ON rentals(status);
 CREATE INDEX idx_rentals_user_id ON rentals(user_id);
 CREATE INDEX idx_payment_attempts_rental_id ON payment_attempts(rental_id);
 ```
+Без индексов БД будет сканировать всю таблицу → тормоза.
 
 ---
 
-### 4. Redis (Кеширование)
+### 4. Redis (кеш)
 
-**Использование:**
-- Кеш офферов (TTL 60 сек)
-- Кеш тарифов (TTL 600 сек)
-- Кеш конфигов (TTL 60 сек)
-- Session storage
+**Зачем нужен:**
+- Кешируем офферы (живут 60 сек)
+- Кешируем тарифы (живут 10 минут)
+- Кешируем конфиги (живут 1 минуту)
+- Можно хранить сессии
+
+**Если Redis упадет:** ничего страшного, просто будет чуть медленнее (пойдем в БД).
 
 **Масштабирование:**
 ```
-Redis Cluster (3 masters + 3 replicas)
+Redis Cluster (3 мастера + 3 реплики)
 ```
+Но при X=10 RPS хватит одного инстанса.
 
 ---
 
-## Оценка ресурсов
+## Сколько железа нужно
 
-### Для X = 10 RPS
+### Для нашей нагрузки X = 10 RPS
 
 **rental-core:**
 - 2 инстанса × 2 CPU × 4 GB RAM
-- Каждый обрабатывает ~15 RPS
+- Каждый справится с ~15 RPS (есть запас)
 
 **billing-worker:**
 - 1 инстанс × 1 CPU × 2 GB RAM
-- Обрабатывает до 1000 активных аренд
+- Потянет до 1000 активных аренд
 
 **PostgreSQL:**
-- 1 master × 4 CPU × 16 GB RAM
-- 1 replica × 2 CPU × 8 GB RAM (для read)
+- 1 master × 4 CPU × 16 GB RAM (для записи)
+- 1 replica × 2 CPU × 8 GB RAM (для чтения, опционально)
 
 **Redis:**
-- 1 инстанс × 1 CPU × 2 GB RAM
+- 1 инстанс × 1 CPU × 2 GB RAM (хватит с головой)
 
-**Итого:** ~10 CPU, ~32 GB RAM
+**Итого:** ~10 CPU, ~32 GB RAM (недорого)
 
 ---
 
-### Для X = 100 RPS (10x рост)
+### Если нагрузка вырастет в 10 раз (X = 100 RPS)
 
 **rental-core:**
 - 6 инстансов × 2 CPU × 4 GB RAM
-- Каждый обрабатывает ~17 RPS
+- Каждый справится с ~17 RPS
 
 **billing-worker:**
 - 3 инстанса × 2 CPU × 4 GB RAM
-- Шардирование по rental_id
+- Делим аренды между ними (шардирование)
 
 **PostgreSQL:**
-- 1 master × 8 CPU × 32 GB RAM
-- 2 replicas × 4 CPU × 16 GB RAM
+- 1 master × 8 CPU × 32 GB RAM (помощнее)
+- 2 replicas × 4 CPU × 16 GB RAM (для чтения)
 
 **Redis:**
-- 3 nodes cluster × 2 CPU × 4 GB RAM
+- 3 ноды в кластере × 2 CPU × 4 GB RAM
 
-**Итого:** ~40 CPU, ~120 GB RAM
+**Итого:** ~40 CPU, ~120 GB RAM (всё еще недорого)
 
 ---
 
-## Bottlenecks и решения
+## Узкие места и как их решать
 
-| Bottleneck | Симптомы | Решение |
+| Что тормозит | Как понять | Что делать |
 |------------|----------|---------|
-| rental-core CPU | High latency, timeouts | Добавить реплики |
-| PostgreSQL Write | Slow INSERT/UPDATE | Вертикальное масштабирование, оптимизация индексов |
-| PostgreSQL Read | Slow SELECT | Read replicas, кеширование |
-| billing-worker | Долгая обработка | Шардирование, параллелизация |
-| external-stubs | Timeouts | Увеличить timeout, добавить retry, кеширование |
+| rental-core не справляется | Высокая latency, таймауты | Добавить инстансов |
+| PostgreSQL медленно пишет | Slow INSERT/UPDATE | Мощнее сервер, проверить индексы |
+| PostgreSQL медленно читает | Slow SELECT | Добавить реплики, больше кеша |
+| billing-worker не успевает | Долги растут, обработка > 30 сек | Шардирование, больше воркеров |
+| external-stubs тормозят | Таймауты | Увеличить timeout, retry, кеш |
 
 ---
 
-## Мониторинг для масштабирования
+## Что мониторить
 
-**Метрики:**
-- RPS (requests per second)
-- Latency (p50, p95, p99)
-- Error rate (4xx, 5xx)
-- DB connections pool usage
-- Active rentals count
-- Debt collection success rate
+**Ключевые метрики:**
+- RPS (сколько запросов в секунду)
+- Latency (p50, p95, p99 - время ответа)
+- Error rate (процент ошибок 4xx/5xx)
+- DB connections (сколько используется)
+- Active rentals (сколько активных аренд)
+- Debt collection rate (процент успешного списания долгов)
 
-**Алерты:**
-- Latency p95 > 1s
-- Error rate > 1%
-- DB connections > 80%
-- Active rentals > 5000
+**Когда бить тревогу:**
+- Latency p95 > 1s (слишком медленно)
+- Error rate > 1% (много ошибок)
+- DB connections > 80% (скоро кончатся)
+- Active rentals > 5000 (пора масштабировать billing-worker)
 
-**Инструменты:**
-- Prometheus + Grafana
-- ELK Stack (Elasticsearch, Logstash, Kibana)
-- Jaeger / OpenTelemetry (трейсинг)
+**Инструменты (на выбор):**
+- Prometheus + Grafana (метрики и графики)
+- ELK Stack (логи и поиск по ним)
+- Jaeger / OpenTelemetry (трейсинг запросов)
 
