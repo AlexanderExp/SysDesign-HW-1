@@ -40,16 +40,12 @@ class BillingService:
         paid_amount = self._payment_service.get_total_paid(rental_id)
         debt_amount = self._debt_service.get_debt_amount(rental_id)
 
-        logger.debug(
-            f"Rental {rental_id}: due={due_amount}, paid={paid_amount}, debt={debt_amount}"
-        )
+        logger.debug(f"Rental {rental_id}: due={due_amount}, paid={paid_amount}, debt={debt_amount}")
 
         # Check for buyout condition
         if (paid_amount + debt_amount) >= self._r_buyout:
             self._rental_repo.set_buyout_status(rental_id)
-            logger.info(
-                f"Rental {rental_id} reached buyout threshold: {paid_amount + debt_amount}"
-            )
+            logger.info(f"Buyout reached for rental {rental_id}: {paid_amount + debt_amount}")
             return RentalBillingResult(charged_amount=0, debt_delta=0)
 
         # Calculate amount to charge
@@ -71,7 +67,7 @@ class BillingService:
                 # Add to debt if charge failed
                 self._debt_service.add_debt(rental_id, to_charge)
                 debt_delta = to_charge
-                logger.warning(f"Added {to_charge} to debt for rental {rental_id}")
+                logger.warning(f"Added debt {to_charge} for rental {rental_id}")
 
             # Check buyout after payment/debt
             new_paid = paid_amount + (to_charge if success else 0)
