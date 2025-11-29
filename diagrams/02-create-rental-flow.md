@@ -53,11 +53,19 @@ sequenceDiagram
         alt Оффер истек
             RC-->>UI: 400 "Quote expired"
         else Оффер валиден
-            RC->>ES: GET /eject-powerbank
-            ES-->>RC: powerbank_id
-            
-            RC->>PG: INSERT rental (ACTIVE)
+            RC->>PG: INSERT rental (PENDING)
             PG-->>RC: rental_id
+            Note over RC,PG: Сначала БД, потом банка!
+            
+            RC->>ES: GET /eject-powerbank
+            alt Выдача успешна
+                ES-->>RC: powerbank_id
+                RC->>PG: UPDATE rental (powerbank_id)
+            else Выдача неуспешна
+                ES-->>RC: error
+                RC->>PG: UPDATE rental (FAILED)
+                RC-->>UI: 500 "Eject failed"
+            end
             
             RC->>ES: POST /hold-money {deposit}
             alt Депозит удержан
@@ -65,7 +73,7 @@ sequenceDiagram
             else Недостаточно средств
                 ES-->>RC: 400 error
                 RC->>PG: INSERT debt (deposit)
-                Note over RC: Долг зафиксирован,<br/>аренда разрешена
+                Note over RC: Долг зафиксирован,<br/>аренда продолжается
             end
             
             RC->>PG: INSERT idempotency_key
@@ -81,6 +89,17 @@ sequenceDiagram
 ```
 
 ## Ключевые особенности
+
+### Правильный порядок операций (критично!)
+**Проблема:** Если сначала выдать пауэрбанк, а потом записать в БД - при падении БД пользователь получит банку бесплатно.
+
+**Решение:**
+1. Сначала создаем запись в БД со статусом `PENDING`
+2. Только после успешной записи выдаем пауэрбанк
+3. Обновляем `powerbank_id` в БД
+4. Если выдача не удалась → помечаем аренду как `FAILED`
+
+**Результат:** Если БД упала - пауэрбанк не выдается. Если выдача упала - есть запись в БД для отладки.
 
 ### Идемпотентность
 - Каждый запрос `/start` требует уникальный `Idempotency-Key`

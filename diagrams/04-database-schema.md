@@ -15,7 +15,7 @@ erDiagram
         int price_per_hour "Цена за час"
         int free_period_min "Бесплатный период"
         int deposit "Депозит"
-        string status "ACTIVE|FINISHED|BUYOUT"
+        string status "ACTIVE|FINISHED|BUYOUT|FAILED"
         int total_amount "Списанная сумма"
         datetime started_at "Время начала"
         datetime finished_at "Время окончания"
@@ -68,8 +68,10 @@ erDiagram
   - `ACTIVE` - аренда в процессе
   - `FINISHED` - завершена пользователем
   - `BUYOUT` - автовыкуп при достижении R_BUYOUT
+  - `FAILED` - не удалось выдать пауэрбанк (запись для отладки)
 - `total_amount`: Сумма успешно списанных платежей
 - `started_at` / `finished_at`: Для расчета длительности
+- `powerbank_id`: Может быть "PENDING" до выдачи банки
 
 **Индексы:**
 - PK на `id`
