@@ -9,44 +9,44 @@ graph TB
     end
     
     subgraph "Критичный источник"
-        ST[stations<br/>❌ Нет fallback<br/>❌ Нет кеша]
+        ST[stations API<br/>Без fallback]
     end
     
     subgraph "Некритичные источники"
         subgraph "configs"
             CF[configs API]
-            CC[Cache<br/>TTL: 60s]
+            CC[Cache TTL=60s]
         end
         
         subgraph "tariffs"
             TF[tariffs API]
-            TC[LRU Cache<br/>TTL: 600s]
+            TC[LRU Cache TTL=600s]
         end
         
         subgraph "users"
             UF[users API]
-            UFALLBACK[Fallback:<br/>trusted=false<br/>жадный прайсинг]
+            UFALLBACK[Fallback:<br/>trusted=false]
         end
         
         subgraph "payments"
             PF[payments API]
-            PFALLBACK[Fallback:<br/>навесить долг]
+            PFALLBACK[Fallback:<br/>создать долг]
         end
     end
     
-    RC -->|Критичный| ST
-    ST -.->|Недоступен| ERR[5xx Error<br/>Аренда не начнется]
+    RC -->|Обязателен| ST
+    ST -.->|Недоступен| ERR[5xx<br/>Отказ в аренде]
     
-    RC -->|1. Проверить кеш| CC
-    CC -->|Есть в кеше| RC
-    CC -->|Нет в кеше| CF
-    CF -->|Обновить кеш| CC
+    RC -->|Проверка кеша| CC
+    CC -->|Cache hit| RC
+    CC -->|Cache miss| CF
+    CF -->|Обновление| CC
     
-    RC -->|1. Проверить LRU| TC
-    TC -->|Hit & Fresh| RC
-    TC -->|Miss or Stale| TF
-    TF -->|Обновить кеш| TC
-    TF -.->|Недоступен| ERR2[400 Error<br/>Невалидные данные]
+    RC -->|Проверка LRU| TC
+    TC -->|Fresh data| RC
+    TC -->|Stale/Miss| TF
+    TF -->|Обновление| TC
+    TF -.->|Недоступен| ERR2[400<br/>Невалидные данные]
     
     RC --> UF
     UF -.->|Недоступен| UFALLBACK
@@ -241,21 +241,21 @@ sequenceDiagram
     participant DB as PostgreSQL
     
     Note over Client,DB: Первый запрос
-    Client->>API: POST /rentals/start<br/>Idempotency-Key: abc-123
-    API->>DB: SELECT * FROM idempotency_keys<br/>WHERE key = 'abc-123'
+    Client->>API: POST /start<br/>Idempotency-Key: abc-123
+    API->>DB: SELECT idempotency_keys
     DB-->>API: Не найдено
-    API->>API: Обработать запрос
-    API->>DB: INSERT INTO rentals (...)
-    API->>DB: INSERT INTO idempotency_keys<br/>(key='abc-123', response_json='...')
-    API-->>Client: 200 OK {order_id: "xyz"}
+    API->>API: Обработка запроса
+    API->>DB: INSERT rental
+    API->>DB: INSERT idempotency_key<br/>(response_json)
+    API-->>Client: 200 {rental_id: "xyz"}
     
-    Note over Client,DB: Повторный запрос (сеть глючит)
-    Client->>API: POST /rentals/start<br/>Idempotency-Key: abc-123
-    API->>DB: SELECT * FROM idempotency_keys<br/>WHERE key = 'abc-123'
-    DB-->>API: Найдено! response_json='...'
-    API-->>Client: 200 OK {order_id: "xyz"}<br/>(тот же ответ)
+    Note over Client,DB: Повторный запрос
+    Client->>API: POST /start<br/>Idempotency-Key: abc-123
+    API->>DB: SELECT idempotency_keys
+    DB-->>API: Найдено
+    API-->>Client: 200 {rental_id: "xyz"}<br/>(кешированный ответ)
     
-    Note over API: Новая аренда НЕ создана!
+    Note over API: Дубликат предотвращен
 ```
 
 **Защита от:**

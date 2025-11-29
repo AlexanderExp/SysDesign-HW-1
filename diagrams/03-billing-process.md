@@ -8,76 +8,76 @@ sequenceDiagram
     participant PG as PostgreSQL
     participant ES as external-stubs
     
-    Note over BW: Каждые 30 секунд (BILLING_TICK_SEC)
+    Note over BW: Тик каждые 30 сек
     
-    loop Для каждой активной аренды
-        BW->>PG: SELECT * FROM rentals<br/>WHERE status = 'ACTIVE'
-        PG-->>BW: Список активных аренд
+    loop Обработка активных аренд
+        BW->>PG: SELECT rentals (ACTIVE)
+        PG-->>BW: active_rentals[]
         
-        BW->>BW: Рассчитать due_amount<br/>= (price_per_hour * billable_seconds) / 3600<br/>billable_seconds = total - free_period
+        BW->>BW: Расчет due_amount<br/>(price × billable_sec / 3600)
         
-        BW->>PG: SELECT SUM(amount) FROM payment_attempts<br/>WHERE rental_id = ? AND success = true
+        BW->>PG: SELECT SUM(payment_attempts)
         PG-->>BW: paid_amount
         
-        BW->>PG: SELECT amount_total FROM debts<br/>WHERE rental_id = ?
+        BW->>PG: SELECT debts
         PG-->>BW: debt_amount
         
-        BW->>BW: to_charge = due_amount - paid_amount - debt_amount
+        BW->>BW: to_charge = due - paid - debt
         
-        alt Достигнут порог выкупа
-            BW->>BW: Проверить: paid + debt >= R_BUYOUT?
-            BW->>PG: UPDATE rentals<br/>SET status = 'BUYOUT', finished_at = now()
-            Note over BW,PG: Аренда завершена автоматически
-        else Есть что начислить (to_charge > 0)
-            BW->>ES: POST /clear-money-for-order<br/>{user_id, order_id, to_charge}
+        alt Достигнут R_BUYOUT
+            BW->>BW: paid + debt >= R_BUYOUT?
+            BW->>PG: UPDATE rental (BUYOUT)
+            Note over BW,PG: Автовыкуп
+        else Новое начисление (to_charge > 0)
+            BW->>ES: POST /clear-money {to_charge}
             
-            alt Платеж успешен
-                ES-->>BW: {status: "success"}
-                BW->>PG: INSERT INTO payment_attempts<br/>(amount, success=true)
-                BW->>PG: UPDATE rentals<br/>SET total_amount += to_charge
-                Note over BW,PG: Деньги списаны
-            else Платеж не прошел
-                ES-->>BW: 400 Error (нет средств)
-                BW->>PG: INSERT INTO payment_attempts<br/>(amount, success=false, error)
-                BW->>PG: INSERT/UPDATE debts<br/>SET amount_total += to_charge
+            alt Списание успешно
+                ES-->>BW: success
+                BW->>PG: INSERT payment_attempt (success)
+                BW->>PG: UPDATE rental.total_amount
+                Note over BW,PG: Оплачено
+            else Недостаточно средств
+                ES-->>BW: 400 error
+                BW->>PG: INSERT payment_attempt (fail)
+                BW->>PG: UPDATE debt (+to_charge)
                 Note over BW,PG: Долг увеличен
             end
             
-            BW->>BW: Проверить: paid + debt >= R_BUYOUT?
-            alt Достигнут порог после начисления
-                BW->>PG: UPDATE rentals<br/>SET status = 'BUYOUT', finished_at = now()
+            BW->>BW: Проверка R_BUYOUT
+            alt Порог достигнут
+                BW->>PG: UPDATE rental (BUYOUT)
             end
-        else Нет новых начислений (to_charge <= 0)
-            alt Есть исторический долг
-                BW->>PG: SELECT * FROM debts<br/>WHERE rental_id = ?
-                PG-->>BW: {amount_total, attempts, last_attempt_at}
+        else Нет начислений (to_charge <= 0)
+            alt Есть долг
+                BW->>PG: SELECT debt
+                PG-->>BW: amount, attempts, last_attempt
                 
-                BW->>BW: Рассчитать backoff<br/>= base * 2^attempts<br/>(max 1 час)
+                BW->>BW: Расчет backoff<br/>(60 × 2^attempts, max 3600s)
                 
-                BW->>BW: Проверить: now - last_attempt >= backoff?
+                BW->>BW: Проверка интервала
                 
-                alt Можно повторить попытку
-                    BW->>BW: charge_amount = min(debt, DEBT_CHARGE_STEP)
-                    BW->>ES: POST /clear-money-for-order<br/>{user_id, order_id, charge_amount}
+                alt Время для retry
+                    BW->>BW: charge = min(debt, step)
+                    BW->>ES: POST /clear-money {charge}
                     
-                    alt Долг погашен частично/полностью
-                        ES-->>BW: {status: "success"}
-                        BW->>PG: UPDATE debts<br/>SET amount_total -= charge_amount,<br/>attempts = 0
-                        BW->>PG: UPDATE rentals<br/>SET total_amount += charge_amount
-                        Note over BW,PG: Долг уменьшен
-                    else Долг не погашен
-                        ES-->>BW: 400 Error
-                        BW->>PG: UPDATE debts<br/>SET attempts += 1,<br/>last_attempt_at = now()
-                        Note over BW,PG: Увеличен счетчик попыток
+                    alt Погашение успешно
+                        ES-->>BW: success
+                        BW->>PG: UPDATE debt (-charge, attempts=0)
+                        BW->>PG: UPDATE rental.total_amount
+                        Note over BW,PG: Долг погашен
+                    else Погашение неуспешно
+                        ES-->>BW: 400 error
+                        BW->>PG: UPDATE debt (attempts+1)
+                        Note over BW,PG: Счетчик попыток++
                     end
-                else Еще в периоде backoff
-                    Note over BW: Пропускаем попытку
+                else Backoff период
+                    Note over BW: Пропуск попытки
                 end
             end
         end
     end
     
-    BW->>BW: Логировать результаты:<br/>active_rentals, total_charged, debt_delta
+    BW->>BW: Логирование метрик
 ```
 
 ## Формула расчета начислений

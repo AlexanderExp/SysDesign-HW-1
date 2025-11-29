@@ -31,7 +31,7 @@ erDiagram
     }
     
     DEBTS {
-        string rental_id PK_FK "ID аренды"
+        string rental_id PK "ID аренды (первичный ключ)"
         int amount_total "Текущий долг"
         datetime updated_at "Время обновления"
         int attempts "Число попыток"
