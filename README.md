@@ -52,18 +52,20 @@ uv run alembic upgrade head
 ### Тестирование
 
 ```bash
-pytest tests/                    # Все тесты
-pytest tests/ -m integration     # Интеграционные тесты
-pytest tests/ -m billing         # Тесты биллинга
-pytest tests/ --cov=services     # Тесты с покрытием
+make test              # Все тесты
+make test-fast         # Быстрые тесты
+make test-integration  # Интеграционные тесты
+make test-billing      # Тесты биллинга
+make test-coverage     # Тесты с покрытием
 ```
 
 ### Управление сервисами
 
 ```bash
-docker compose up -d                              # Запуск всех сервисов
-docker compose down                               # Остановка сервисов
-docker compose logs -f                            # Просмотр логов
-docker compose restart rental-core billing-worker # Перезапуск основных сервисов
+make up              # Запуск всех сервисов
+make down            # Остановка сервисов
+make logs            # Просмотр логов
+make restart         # Перезапуск основных сервисов
+make test-all        # Запуск тестов с подъемом сервисов
 ```
 
