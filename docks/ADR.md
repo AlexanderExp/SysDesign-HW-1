@@ -571,6 +571,19 @@ Idempotency-Key — идентификатор HTTP-запроса (попытк
 
 ---
 
+## Схема ручек (подробности о каждой из них можно увидеть выше и в папке diagrams)
+
+rental-core (http://localhost:8000)
+└── GET  /api/v1/health
+└── POST /api/v1/rentals/quote
+└── POST /api/v1/rentals/start
+└── GET  /api/v1/rentals/{rental_id}/status
+
+external-stubs (http://localhost:3629)
+└── GET  /configs
+└── GET  /tariff
+
+
 ## Расчёт нагрузки
 
 ### Нагрузка по HTTP-handler’ам
