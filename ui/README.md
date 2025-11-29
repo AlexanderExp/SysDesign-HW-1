@@ -19,7 +19,7 @@ docker compose up -d
 
 ```bash
 # macOS
-open demo-ui/index.html
+open ui/index.html
 
 # Linux
 xdg-open demo-ui/index.html

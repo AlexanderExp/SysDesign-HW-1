@@ -1,61 +1,81 @@
 from typing import Dict, Any
-from pybreaker import CircuitBreaker
+
+import pybreaker
 from loguru import logger
 
 from rental_core.config.settings import Settings
 
 
-class CircuitBreakerConfig:    
+class LoggingCircuitBreakerListener(pybreaker.CircuitBreakerListener):
+    """Listener для логирования смены состояния circuit breaker'а."""
+
+    def state_change(self, cb, old_state, new_state) -> None:
+        logger.warning(
+            f"Circuit Breaker '{cb.name}' state changed: {old_state} -> {new_state}. "
+            f"Failures: {cb.fail_counter}/{cb.fail_max}"
+        )
+    # методы before_call / success / failure можно не переопределять,
+    # если они не нужны – базовый класс оставит их no-op
+
+
+class CircuitBreakerConfig:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._breakers: Dict[str, CircuitBreaker] = {}
-    
-    def get_station_breaker(self) -> CircuitBreaker:
+        self._breakers: Dict[str, pybreaker.CircuitBreaker] = {}
+        self._listener = LoggingCircuitBreakerListener()
+
+    def _make_breaker(
+        self,
+        name: str,
+        fail_max: int,
+        reset_timeout: int,
+        exclude: tuple[type[BaseException], ...] = (),
+    ) -> pybreaker.CircuitBreaker:
+        return pybreaker.CircuitBreaker(
+            fail_max=fail_max,
+            reset_timeout=reset_timeout,
+            exclude=exclude,
+            name=name,
+            listeners=[self._listener],  # ✅ объект-listener, а не функция
+        )
+
+    def get_station_breaker(self) -> pybreaker.CircuitBreaker:
         if "station" not in self._breakers:
-            self._breakers["station"] = CircuitBreaker(
+            self._breakers["station"] = self._make_breaker(
+                name="station_operations",
                 fail_max=self.settings.cb_station_fail_max,
                 reset_timeout=self.settings.cb_station_reset_timeout,
-                exclude=[KeyError, ValueError],  # Don't count data validation errors
-                name="station_operations",
-                listeners=[self._log_state_change]
+                exclude=(KeyError, ValueError),
             )
         return self._breakers["station"]
-    
-    def get_payment_breaker(self) -> CircuitBreaker:
+
+    def get_payment_breaker(self) -> pybreaker.CircuitBreaker:
         if "payment" not in self._breakers:
-            self._breakers["payment"] = CircuitBreaker(
+            self._breakers["payment"] = self._make_breaker(
+                name="payment_operations",
                 fail_max=self.settings.cb_payment_fail_max,
                 reset_timeout=self.settings.cb_payment_reset_timeout,
-                name="payment_operations",
-                listeners=[self._log_state_change]
             )
         return self._breakers["payment"]
-    
-    def get_profile_breaker(self) -> CircuitBreaker:
+
+    def get_profile_breaker(self) -> pybreaker.CircuitBreaker:
         if "profile" not in self._breakers:
-            self._breakers["profile"] = CircuitBreaker(
+            self._breakers["profile"] = self._make_breaker(
+                name="profile_operations",
                 fail_max=self.settings.cb_profile_fail_max,
                 reset_timeout=self.settings.cb_profile_reset_timeout,
-                exclude=[KeyError, ValueError],  # Don't count data validation errors
-                name="profile_operations",
-                listeners=[self._log_state_change]
+                exclude=(KeyError, ValueError),
             )
         return self._breakers["profile"]
-    
-    def _log_state_change(self, breaker: CircuitBreaker, old_state: str, new_state: str) -> None:
-        logger.warning(
-            f"Circuit Breaker '{breaker.name}' state changed: {old_state} -> {new_state}. "
-            f"Failures: {breaker.fail_counter}/{breaker.fail_max}"
-        )
-    
+
     def get_breaker_stats(self) -> Dict[str, Dict[str, Any]]:
-        stats = {}
+        stats: Dict[str, Dict[str, Any]] = {}
         for name, breaker in self._breakers.items():
             stats[name] = {
                 "state": breaker.current_state,
                 "fail_counter": breaker.fail_counter,
                 "fail_max": breaker.fail_max,
                 "reset_timeout": breaker.reset_timeout,
-                "last_failure": getattr(breaker, "last_failure", None)
+                "last_failure": getattr(breaker, "last_failure", None),
             }
         return stats
