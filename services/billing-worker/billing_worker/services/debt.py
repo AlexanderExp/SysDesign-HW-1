@@ -27,7 +27,11 @@ class DebtService:
         self._debt_charge_step = settings.debt_charge_step
 
     def calculate_backoff_seconds(self, attempts: int) -> int:
-        """Calculate backoff window in seconds using exponential backoff."""
+        """Calculate backoff window in seconds using exponential backoff.
+        
+        Formula: base * 2^attempts, capped at max
+        Example: 60 * 2^0=60s, 60 * 2^1=120s, 60 * 2^2=240s, ...
+        """
         window = self._debt_retry_base_sec * (2 ** min(attempts, 8))
         return min(window, self._debt_retry_max_sec)
 

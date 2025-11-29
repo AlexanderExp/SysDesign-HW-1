@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Демо: Система аренды пауэрбанков</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(72, 187, 120, 0.3);
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(245, 101, 101, 0.3);
+        }
+
+        .btn-info {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+        }
+
+        .btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .logs-panel {
+            grid-column: 1 / -1;
+        }
+
+        .logs-container {
+            background: #1a202c;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .log-entry {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 3px;
+            border-left: 3px solid;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .log-entry.request {
+            background: #2d3748;
+            border-left-color: #4299e1;
+        }
+
+        .log-entry.response {
+            background: #2d3748;
+            border-left-color: #48bb78;
+        }
+
+        .log-entry.error {
+            background: #2d3748;
+            border-left-color: #f56565;
+        }
+
+        .log-timestamp {
+            color: #a0aec0;
+            font-size: 11px;
+        }
+
+        .log-method {
+            color: #4299e1;
+            font-weight: bold;
+        }
+
+        .log-url {
+            color: #ed8936;
+        }
+
+        .log-status {
+            color: #48bb78;
+            font-weight: bold;
+        }
+
+        .log-status.error {
+            color: #f56565;
+        }
+
+        .log-body {
+            color: #e2e8f0;
+            margin-top: 5px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .status-card {
+            background: #f7fafc;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .status-label {
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .status-value {
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .status-value.active {
+            color: #48bb78;
+        }
+
+        .status-value.finished {
+            color: #4299e1;
+        }
+
+        .status-value.buyout {
+            color: #ed8936;
+        }
+
+        .clear-logs {
+            background: #718096;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .clear-logs:hover {
+            background: #4a5568;
+        }
+
+        .info-box {
+            background: #ebf8ff;
+            border-left: 4px solid #4299e1;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 3px;
+            font-size: 13px;
+            color: #2c5282;
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔋 Демо: Система аренды пауэрбанков</h1>
+            <p>Команда 8 | X=10 RPS, Y=10, Z=1KB | Интерактивная демонстрация работы системы</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Панель создания оффера -->
+            <div class="panel">
+                <h2>1️⃣ Создание оффера</h2>
+                <div class="info-box">
+                    Получите оффер с ценой и условиями аренды
+                </div>
+                <div class="form-group">
+                    <label>User ID</label>
+                    <input type="text" id="quoteUserId" value="user-demo-001" placeholder="user-demo-001">
+                </div>
+                <div class="form-group">
+                    <label>Station ID</label>
+                    <select id="quoteStationId">
+                        <option value="some-station-id">some-station-id (есть банки)</option>
+                        <option value="empty-station-id">empty-station-id (пустая)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="createQuote()">
+                    Создать оффер
+                </button>
+                <div id="quoteResult" class="status-card" style="display: none;"></div>
+            </div>
+
+            <!-- Панель старта аренды -->
+            <div class="panel">
+                <h2>2️⃣ Старт аренды</h2>
+                <div class="info-box">
+                    Начните аренду по полученному офферу
+                </div>
+                <div class="form-group">
+                    <label>Quote ID</label>
+                    <input type="text" id="startQuoteId" placeholder="Сначала создайте оффер">
+                </div>
+                <div class="form-group">
+                    <label>Idempotency Key (автогенерация)</label>
+                    <input type="text" id="idempotencyKey" readonly>
+                </div>
+                <button class="btn btn-success" onclick="startRental()" id="startBtn" disabled>
+                    Начать аренду
+                </button>
+                <div id="rentalResult" class="status-card" style="display: none;"></div>
+            </div>
+
+            <!-- Панель статуса -->
+            <div class="panel">
+                <h2>3️⃣ Статус аренды</h2>
+                <div class="info-box">
+                    Проверьте текущий статус и накопленную стоимость
+                </div>
+                <div class="form-group">
+                    <label>Order ID</label>
+                    <input type="text" id="statusOrderId" placeholder="Сначала начните аренду">
+                </div>
+                <button class="btn btn-info" onclick="getStatus()" id="statusBtn" disabled>
+                    Получить статус
+                </button>
+                <div class="quick-actions">
+                    <button class="btn btn-info" onclick="startAutoRefresh()" id="autoRefreshBtn" disabled>
+                        🔄 Авто-обновление
+                    </button>
+                    <button class="btn btn-danger" onclick="stopAutoRefresh()" id="stopRefreshBtn" disabled style="display: none;">
+                        ⏸️ Остановить
+                    </button>
+                </div>
+                <div id="statusResult" class="status-card" style="display: none;"></div>
+            </div>
+
+            <!-- Панель завершения -->
+            <div class="panel">
+                <h2>4️⃣ Завершение аренды</h2>
+                <div class="info-box">
+                    Верните пауэрбанк и завершите аренду
+                </div>
+                <div class="form-group">
+                    <label>Order ID</label>
+                    <input type="text" id="stopOrderId" placeholder="Сначала начните аренду">
+                </div>
+                <div class="form-group">
+                    <label>Station ID (возврат)</label>
+                    <select id="stopStationId">
+                        <option value="some-station-id">some-station-id</option>
+                        <option value="another-station-id">another-station-id</option>
+                    </select>
+                </div>
+                <button class="btn btn-danger" onclick="stopRental()" id="stopBtn" disabled>
+                    Завершить аренду
+                </button>
+                <div id="stopResult" class="status-card" style="display: none;"></div>
+            </div>
+
+            <!-- Панель логов -->
+            <div class="panel logs-panel">
+                <h2>📋 Логи запросов и ответов</h2>
+                <button class="clear-logs" onclick="clearLogs()">Очистить логи</button>
+                <div class="logs-container" id="logsContainer">
+                    <div class="log-entry request">
+                        <div class="log-timestamp">Готов к работе...</div>
+                        <div class="log-body">Используйте кнопки выше для взаимодействия с API</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let autoRefreshInterval = null;
+
+        // Генерация UUID для idempotency key
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Логирование
+        function addLog(type, method, url, status, data, error = null) {
+            const logsContainer = document.getElementById('logsContainer');
+            const timestamp = new Date().toLocaleTimeString('ru-RU');
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            
+            let content = `<div class="log-timestamp">${timestamp}</div>`;
+            
+            if (type === 'request') {
+                content += `<div><span class="log-method">${method}</span> <span class="log-url">${url}</span></div>`;
+                if (data) {
+                    content += `<div class="log-body">${JSON.stringify(data, null, 2)}</div>`;
+                }
+            } else if (type === 'response') {
+                content += `<div><span class="log-status">${status}</span> <span class="log-url">${url}</span></div>`;
+                if (data) {
+                    content += `<div class="log-body">${JSON.stringify(data, null, 2)}</div>`;
+                }
+            } else if (type === 'error') {
+                content += `<div><span class="log-status error">ERROR</span> <span class="log-url">${url}</span></div>`;
+                content += `<div class="log-body">${error}</div>`;
+            }
+            
+            logEntry.innerHTML = content;
+            logsContainer.insertBefore(logEntry, logsContainer.firstChild);
+            
+            // Ограничиваем количество логов
+            while (logsContainer.children.length > 50) {
+                logsContainer.removeChild(logsContainer.lastChild);
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('logsContainer').innerHTML = '';
+        }
+
+        // Создание оффера
+        async function createQuote() {
+            const userId = document.getElementById('quoteUserId').value;
+            const stationId = document.getElementById('quoteStationId').value;
+            
+            const requestData = { user_id: userId, station_id: stationId };
+            const url = `${API_BASE}/api/v1/rentals/quote`;
+            
+            addLog('request', 'POST', url, null, requestData);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                addLog('response', 'POST', url, response.status, data);
+                
+                if (response.ok) {
+                    // Отображаем результат
+                    const resultDiv = document.getElementById('quoteResult');
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `
+                        <div class="status-row">
+                            <span class="status-label">Quote ID:</span>
+                            <span class="status-value">${data.quote_id}</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Цена за час:</span>
+                            <span class="status-value">${data.price_per_hour} ₽</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Бесплатный период:</span>
+                            <span class="status-value">${data.free_period_min} мин</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Депозит:</span>
+                            <span class="status-value">${data.deposit} ₽</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Истекает через:</span>
+                            <span class="status-value">${data.expires_in_sec} сек</span>
+                        </div>
+                    `;
+                    
+                    // Автозаполнение для следующего шага
+                    document.getElementById('startQuoteId').value = data.quote_id;
+                    document.getElementById('idempotencyKey').value = generateUUID();
+                    document.getElementById('startBtn').disabled = false;
+                }
+            } catch (error) {
+                addLog('error', 'POST', url, null, null, error.message);
+            }
+        }
+
+        // Старт аренды
+        async function startRental() {
+            const quoteId = document.getElementById('startQuoteId').value;
+            const idempotencyKey = document.getElementById('idempotencyKey').value;
+            
+            const requestData = { quote_id: quoteId };
+            const url = `${API_BASE}/api/v1/rentals/start`;
+            
+            addLog('request', 'POST', url, null, { ...requestData, 'Idempotency-Key': idempotencyKey });
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': idempotencyKey
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                addLog('response', 'POST', url, response.status, data);
+                
+                if (response.ok) {
+                    const resultDiv = document.getElementById('rentalResult');
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = `
+                        <div class="status-row">
+                            <span class="status-label">Order ID:</span>
+                            <span class="status-value">${data.order_id}</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Статус:</span>
+                            <span class="status-value active">${data.status}</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Powerbank ID:</span>
+                            <span class="status-value">${data.powerbank_id}</span>
+                        </div>
+                    `;
+                    
+                    // Автозаполнение для следующих шагов
+                    document.getElementById('statusOrderId').value = data.order_id;
+                    document.getElementById('stopOrderId').value = data.order_id;
+                    document.getElementById('statusBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = false;
+                    document.getElementById('autoRefreshBtn').disabled = false;
+                }
+            } catch (error) {
+                addLog('error', 'POST', url, null, null, error.message);
+            }
+        }
+
+        // Получение статуса
+        async function getStatus() {
+            const orderId = document.getElementById('statusOrderId').value;
+            const url = `${API_BASE}/api/v1/rentals/${orderId}/status`;
+            
+            addLog('request', 'GET', url, null, null);
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                addLog('response', 'GET', url, response.status, data);
+                
+                if (response.ok) {
+                    const resultDiv = document.getElementById('statusResult');
+                    resultDiv.style.display = 'block';
+                    
+                    let statusClass = 'active';
+                    if (data.status === 'FINISHED') statusClass = 'finished';
+                    if (data.status === 'BUYOUT') statusClass = 'buyout';
+                    
+                    // Рассчитываем общую стоимость поездки
+                    const totalCost = data.total_amount + data.debt;
+                    
+                    resultDiv.innerHTML = `
+                        <div class="status-row">
+                            <span class="status-label">Order ID:</span>
+                            <span class="status-value">${data.order_id}</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Статус:</span>
+                            <span class="status-value ${statusClass}">${data.status}</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">💰 Стоимость поездки:</span>
+                            <span class="status-value" style="font-size: 16px; font-weight: bold;">${totalCost} ₽</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">├─ Оплачено:</span>
+                            <span class="status-value" style="color: #48bb78;">${data.total_amount} ₽</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">└─ Долг:</span>
+                            <span class="status-value" style="color: ${data.debt > 0 ? '#f56565' : '#48bb78'};">${data.debt} ₽</span>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                addLog('error', 'GET', url, null, null, error.message);
+            }
+        }
+
+        // Авто-обновление статуса
+        function startAutoRefresh() {
+            if (autoRefreshInterval) return;
+            
+            document.getElementById('autoRefreshBtn').style.display = 'none';
+            document.getElementById('stopRefreshBtn').style.display = 'block';
+            
+            autoRefreshInterval = setInterval(() => {
+                getStatus();
+            }, 3000); // Каждые 3 секунды
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            
+            document.getElementById('autoRefreshBtn').style.display = 'block';
+            document.getElementById('stopRefreshBtn').style.display = 'none';
+        }
+
+        // Завершение аренды
+        async function stopRental() {
+            const orderId = document.getElementById('stopOrderId').value;
+            const stationId = document.getElementById('stopStationId').value;
+            
+            const requestData = { station_id: stationId };
+            const url = `${API_BASE}/api/v1/rentals/${orderId}/stop`;
+            
+            addLog('request', 'POST', url, null, requestData);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                addLog('response', 'POST', url, response.status, data);
+                
+                if (response.ok) {
+                    const resultDiv = document.getElementById('stopResult');
+                    resultDiv.style.display = 'block';
+                    
+                    // Рассчитываем итоговую стоимость
+                    const finalCost = data.total_amount + data.debt;
+                    
+                    resultDiv.innerHTML = `
+                        <div class="status-row">
+                            <span class="status-label">Order ID:</span>
+                            <span class="status-value">${data.order_id}</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Статус:</span>
+                            <span class="status-value finished">${data.status}</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">💰 Итоговая стоимость:</span>
+                            <span class="status-value" style="font-size: 16px; font-weight: bold;">${finalCost} ₽</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">├─ Оплачено:</span>
+                            <span class="status-value" style="color: #48bb78;">${data.total_amount} ₽</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">└─ Долг:</span>
+                            <span class="status-value" style="color: ${data.debt > 0 ? '#f56565' : '#48bb78'};">${data.debt} ₽</span>
+                        </div>
+                    `;
+                    
+                    // Останавливаем авто-обновление
+                    stopAutoRefresh();
+                }
+            } catch (error) {
+                addLog('error', 'POST', url, null, null, error.message);
+            }
+        }
+
+        // Проверка доступности API при загрузке
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    addLog('response', 'GET', `${API_BASE}/api/v1/health`, 200, data);
+                }
+            } catch (error) {
+                addLog('error', 'GET', `${API_BASE}/api/v1/health`, null, null, 
+                    'API недоступен. Убедитесь, что rental-core запущен на порту 8000');
+            }
+        });
+    </script>
+</body>
+</html>
+

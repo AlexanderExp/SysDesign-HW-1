@@ -39,6 +39,10 @@ class PaymentAttempt(Base):
     )
 
 
+# Explicit index for payment attempts
+# Index("ix_payment_attempts_rental_id", PaymentAttempt.rental_id)
+
+
 class Debt(Base):
     __tablename__ = "debts"
 

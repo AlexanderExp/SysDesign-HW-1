@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -76,6 +77,8 @@ class RentalRepository:
         billable_seconds = max(0, total_seconds - free_seconds)
 
         # Calculate amount: (price_per_hour * billable_seconds) / 3600
-        due_amount = (rental.price_per_hour * billable_seconds) // 3600
-
+        if billable_seconds > 0:
+            due_amount = math.ceil((rental.price_per_hour * billable_seconds) / 3600)
+        else:
+            due_amount = 0
         return due_amount

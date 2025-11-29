@@ -12,6 +12,7 @@ from rental_core.db.repositories.rental import RentalRepository
 from rental_core.schemas import (
     RentalStatusResponse,
     StartRentalRequest,
+    StopRentalRequest,
 )
 from rental_core.services.payment import PaymentService
 from rental_core.services.quote import QuoteService
@@ -92,8 +93,8 @@ class RentalService:
         logger.info(f"Rental started: {rental.id}")
         return RentalStatusResponse(**response_data)
 
-    def stop_rental(self, order_id: str) -> RentalStatusResponse:
-        logger.info(f"Stopping rental {order_id}")
+    def stop_rental(self, order_id: str, request: StopRentalRequest) -> RentalStatusResponse:
+        logger.info(f"Stopping rental {order_id} at station {request.station_id}")
 
         rental = self.rental_repo.get_rental(order_id)
         if not rental:
