@@ -22,9 +22,17 @@ def external_base() -> str:
 
 @pytest.fixture(scope="session")
 def database_url() -> str:
-    """Database connection URL."""
     return os.getenv(
-        "DATABASE_URL", "postgresql+psycopg2://app:app@localhost:5432/rental"
+        "DATABASE_URL",
+        "postgresql+psycopg2://app:app@localhost:5433/rental",
+    )
+
+
+@pytest.fixture(scope="session")
+def billing_database_url() -> str:
+    return os.getenv(
+        "BILLING_DATABASE_URL",
+        "postgresql+psycopg2://app:app@localhost:5434/billing",
     )
 
 
@@ -32,6 +40,12 @@ def database_url() -> str:
 def db_engine(database_url: str):
     """Create database engine."""
     engine = create_engine(database_url)
+    yield engine
+    engine.dispose()
+
+@pytest.fixture(scope="session")
+def billing_db_engine(billing_database_url: str):
+    engine = create_engine(billing_database_url)
     yield engine
     engine.dispose()
 
@@ -46,6 +60,14 @@ def db_session(db_engine) -> Generator[Session, None, None]:
     finally:
         session.close()
 
+@pytest.fixture
+def billing_db_session(billing_db_engine) -> Generator[Session, None, None]:
+    SessionLocal = sessionmaker(bind=billing_db_engine)
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 @pytest.fixture
 def api_client(base_url: str):
@@ -85,16 +107,18 @@ def wait_for_billing():
 
 
 @pytest.fixture
-def cleanup_db(db_session: Session):
+def cleanup_db(db_session: Session, billing_db_session: Session):
     """Cleanup database after test."""
-    yield
-    # Cleanup in reverse order of dependencies
-    db_session.execute(text("DELETE FROM payment_attempts"))
-    db_session.execute(text("DELETE FROM debts"))
-    db_session.execute(text("DELETE FROM idempotency_keys"))
     db_session.execute(text("DELETE FROM rentals"))
     db_session.execute(text("DELETE FROM quotes"))
+    db_session.execute(text("DELETE FROM idempotency_keys"))
     db_session.commit()
+
+    billing_db_session.execute(text("DELETE FROM payment_attempts"))
+    billing_db_session.execute(text("DELETE FROM debts"))
+    billing_db_session.commit()
+
+    yield
 
 
 @pytest.fixture
@@ -114,3 +138,20 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: mark test as integration test")
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "billing: mark test as billing-related")
+
+from shared.db.models import Base, PaymentAttempt, Debt
+
+@pytest.fixture(scope="session", autouse=True)
+def init_billing_schema(billing_db_engine):
+    """
+    Гарантируем, что в billing-БД есть таблицы payment_attempts и debts
+    перед запуском любых тестов.
+    """
+    engine = billing_db_engine
+
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[PaymentAttempt.__table__, Debt.__table__],
+    )
+
+    yield

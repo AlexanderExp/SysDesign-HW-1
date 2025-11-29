@@ -28,7 +28,7 @@ quote_once(){
 
 # --- bring up ---
 banner "bring up stack"
-docker compose up -d external-stubs db redis rental-core >/dev/null
+docker compose up -d external-stubs db-rental db-billing redis rental-core >/dev/null
 ok "docker services are up (requested)"
 
 # --- health ---

@@ -38,14 +38,12 @@ sleep "$WAIT"
 
 echo
 echo "== attempts / debt =="
-docker compose exec -T db psql -U app -d rental -c \
-"select count(*) attempts_total,
-        sum(case when success then 1 else 0 end) attempts_ok,
-        coalesce(sum(amount),0) amount_sum
+docker compose exec -T db-billing psql -U app -d billing -c \
+"select coalesce(sum(amount),0) amount_sum
    from payment_attempts
   where rental_id='${OID}';" | cat
 
-docker compose exec -T db psql -U app -d rental -c \
+docker compose exec -T db-billing psql -U app -d billing -c \
 "select coalesce(amount_total,0) debt
    from debts where rental_id='${OID}';" | cat
 

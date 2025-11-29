@@ -1,6 +1,6 @@
 """init
 
-Revision ID: 080c52ef9d02
+Revision ID: 080c52ef9d02_rental
 Revises:
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "080c52ef9d02"
+revision: str = "080c52ef9d02_rental"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

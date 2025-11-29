@@ -4,8 +4,8 @@ from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
-from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
+from dotenv import load_dotenv
 
 
 def load_env():
@@ -28,10 +28,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# rental Alembic → DATABASE_URL (db-rental)
-database_url = os.getenv("DATABASE_URL")
+# billing Alembic → BILLING_DATABASE_URL (db-billing)
+database_url = os.getenv("BILLING_DATABASE_URL")
 if not database_url:
-    raise RuntimeError("DATABASE_URL не задан для rental миграций")
+    raise RuntimeError("BILLING_DATABASE_URL не задан для billing миграций")
 
 config.set_main_option("sqlalchemy.url", database_url)
 
