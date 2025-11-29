@@ -32,11 +32,6 @@ class RentalRepository:
         return list(result)
 
     def update_total_amount(self, rental_id: str, amount_delta: int) -> bool:
-        """Update rental total amount by adding delta.
-
-        Returns:
-            bool: True if rental was found and updated
-        """
         rental = self.get_by_id(rental_id)
         if not rental:
             return False
@@ -49,15 +44,6 @@ class RentalRepository:
         return True
 
     def finish_rental(self, rental_id: str, status: str = "FINISHED") -> bool:
-        """Finish rental with given status.
-
-        Args:
-            rental_id: Rental ID
-            status: New status (FINISHED, BUYOUT, etc.)
-
-        Returns:
-            bool: True if rental was found and updated
-        """
         now = datetime.now(timezone.utc)
         result = self.session.execute(
             update(Rental)
@@ -71,19 +57,9 @@ class RentalRepository:
         return updated
 
     def set_buyout_status(self, rental_id: str) -> bool:
-        """Set rental status to BUYOUT."""
         return self.finish_rental(rental_id, "BUYOUT")
 
     def calculate_due_amount(self, rental: Rental, current_time: datetime) -> int:
-        """Calculate amount due for rental based on time elapsed.
-
-        Args:
-            rental: Rental object
-            current_time: Current time to calculate against
-
-        Returns:
-            int: Amount due in cents/kopecks
-        """
         if not rental.started_at:
             return 0
 

@@ -17,15 +17,6 @@ class PaymentService:
         self._external_client = external_client
 
     def try_charge_rental(self, rental_id: str, amount: int) -> tuple[bool, str | None]:
-        """Try to charge amount for rental.
-
-        Args:
-            rental_id: Rental ID
-            amount: Amount to charge
-
-        Returns:
-            Tuple[bool, str]: (success, error_message)
-        """
         if amount <= 0:
             return True, None
 
