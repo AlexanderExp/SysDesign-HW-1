@@ -235,6 +235,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pybreaker"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/2a/4cd8ea71a18ca65dfb6de746b802f8ced1e857d1bcf271b30de42f39e494/pybreaker-1.0.3.tar.gz", hash = "sha256:f837910d07dcc597ebdc8582acbd49277aeb2b8e2174f57cf77c8bd8471a3a41", size = 14857, upload-time = "2023-12-22T19:27:39.912Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c8/ea/9692a3f6c77f660ba6128825bc28eaa7fed174ff07bc3868f4dbc58b3863/pybreaker-1.0.3-py3-none-any.whl", hash = "sha256:63214ee959468113a93ac8bf85fa6745dd54f0e18a6649efd81ae03ade10f82c", size = 12140, upload-time = "2023-12-22T19:27:37.642Z" },
+]
+
+[[package]]
 name = "pydantic"
 version = "2.12.4"
 source = { registry = "https://pypi.org/simple" }
@@ -372,6 +381,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "loguru" },
     { name = "psycopg2-binary" },
+    { name = "pybreaker" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -393,6 +403,7 @@ requires-dist = [
     { name = "fastapi", specifier = "~=0.121.3" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "psycopg2-binary", specifier = "~=2.9.9" },
+    { name = "pybreaker", specifier = "~=1.0.2" },
     { name = "pydantic", specifier = "~=2.12.4" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "python-dotenv", specifier = "~=1.2.1" },

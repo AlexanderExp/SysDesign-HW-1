@@ -26,7 +26,3 @@ package = true
 
 [tool.uv.sources]
 shared = { path = "../../shared", editable = true }
-
-[tool.setuptools]
-packages = ["billing_worker"]
-package-dir = {"" = "."}

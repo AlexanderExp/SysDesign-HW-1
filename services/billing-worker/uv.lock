@@ -57,6 +57,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "loguru" },
     { name = "psycopg2-binary" },
+    { name = "pybreaker" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "requests" },
@@ -75,6 +76,7 @@ requires-dist = [
     { name = "fastapi", specifier = "~=0.121.3" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "psycopg2-binary", specifier = "~=2.9.9" },
+    { name = "pybreaker", specifier = "~=1.0.2" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "python-dotenv", specifier = "~=1.2.1" },
     { name = "requests", specifier = "~=2.32.4" },
@@ -260,6 +262,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/92/57/96576e07132d7f7a1ac1df939575e6fdd8951aea337ee152b586bb51a971/psycopg2_binary-2.9.9-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:78151aa3ec21dccd5cdef6c74c3e73386dcdfaf19bced944169697d7ac7482fc", size = 2454908, upload-time = "2023-10-03T12:46:52.903Z" },
     { url = "https://files.pythonhosted.org/packages/7c/ae/cedd56e1f4a2b0e37213283caf3733a875c4c76f3372241e19c0d2a87355/psycopg2_binary-2.9.9-cp311-cp311-win32.whl", hash = "sha256:dc4926288b2a3e9fd7b50dc6a1909a13bbdadfc67d93f3374d984e56f885579d", size = 1024240, upload-time = "2023-10-03T12:46:55.009Z" },
     { url = "https://files.pythonhosted.org/packages/25/1f/7ae31759142999a8d06b3e250c1346c4abcdcada8fa884376775dc1de686/psycopg2_binary-2.9.9-cp311-cp311-win_amd64.whl", hash = "sha256:b76bedd166805480ab069612119ea636f5ab8f8771e640ae103e05a4aae3e417", size = 1163655, upload-time = "2023-10-03T12:46:57.038Z" },
+]
+
+[[package]]
+name = "pybreaker"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/2a/4cd8ea71a18ca65dfb6de746b802f8ced1e857d1bcf271b30de42f39e494/pybreaker-1.0.3.tar.gz", hash = "sha256:f837910d07dcc597ebdc8582acbd49277aeb2b8e2174f57cf77c8bd8471a3a41", size = 14857, upload-time = "2023-12-22T19:27:39.912Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c8/ea/9692a3f6c77f660ba6128825bc28eaa7fed174ff07bc3868f4dbc58b3863/pybreaker-1.0.3-py3-none-any.whl", hash = "sha256:63214ee959468113a93ac8bf85fa6745dd54f0e18a6649efd81ae03ade10f82c", size = 12140, upload-time = "2023-12-22T19:27:37.642Z" },
 ]
 
 [[package]]
