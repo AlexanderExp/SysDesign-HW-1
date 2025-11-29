@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Query
 from model import EjectResponse, Slot, StationData, Tariff, UserProfile
@@ -6,11 +6,16 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
+disabled_endpoints: Dict[str, bool] = {}
+
 
 @app.get("/station-data")
 async def get_station_data(
     id: Optional[str] = Query(None, description="An optional ID parameter"),
 ):
+    if disabled_endpoints.get("station-data", False):
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    
     if id is None:
         raise HTTPException(
             status_code=400, detail="ID parameter is required and cannot be empty."
@@ -26,6 +31,9 @@ async def get_station_data(
 async def get_tariff(
     id: Optional[str] = Query(None, description="An optional ID parameter"),
 ):
+    if disabled_endpoints.get("tariff", False):
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    
     if id is None:
         raise HTTPException(
             status_code=400, detail="ID parameter is required and cannot be empty."
@@ -39,6 +47,9 @@ async def get_tariff(
 async def get_user_profile(
     id: Optional[str] = Query(None, description="An optional ID parameter"),
 ):
+    if disabled_endpoints.get("user-profile", False):
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    
     if id is None:
         raise HTTPException(
             status_code=400, detail="ID parameter is required and cannot be empty."
@@ -49,6 +60,9 @@ async def get_user_profile(
 
 @app.get("/configs")
 async def get_configs():
+    if disabled_endpoints.get("configs", False):
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    
     return {"price_coeff_settings": {"last_banks_increase": 1.5}}
 
 
@@ -56,6 +70,9 @@ async def get_configs():
 async def eject_powerbank(
     station_id: Optional[str] = Query(None, description="An optional ID parameter"),
 ):
+    if disabled_endpoints.get("eject-powerbank", False):
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    
     if station_id is None:
         raise HTTPException(
             status_code=400,
@@ -76,6 +93,9 @@ class MoneyRequest(BaseModel):
 
 @app.post("/hold-money-for-order")
 async def hold_money_for_order(request: MoneyRequest):
+    if disabled_endpoints.get("hold-money-for-order", False):
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    
     if request.user_id is None:
         raise HTTPException(
             status_code=400, detail="user_id parameter is required and cannot be empty."
@@ -85,11 +105,47 @@ async def hold_money_for_order(request: MoneyRequest):
 
 @app.post("/clear-money-for-order")
 async def clear_money_for_order(request: MoneyRequest):
+    if disabled_endpoints.get("clear-money-for-order", False):
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+    
     if request.user_id is None:
         raise HTTPException(
             status_code=400, detail="user_id parameter is required and cannot be empty."
         )
     return {"status": "success"}
+
+
+class EndpointControlRequest(BaseModel):
+    endpoint: str
+    disabled: bool
+
+
+@app.post("/admin/disable-endpoint")
+async def disable_endpoint(request: EndpointControlRequest):
+    disabled_endpoints[request.endpoint] = request.disabled
+    return {"status": "success", "endpoint": request.endpoint, "disabled": request.disabled}
+
+
+@app.get("/admin/status")
+async def get_admin_status():
+    return {
+        "disabled_endpoints": disabled_endpoints,
+        "available_endpoints": [
+            "station-data",
+            "tariff",
+            "user-profile",
+            "configs",
+            "eject-powerbank",
+            "hold-money-for-order",
+            "clear-money-for-order"
+        ]
+    }
+
+
+@app.post("/admin/reset-all")
+async def reset_all_endpoints():
+    disabled_endpoints.clear()
+    return {"status": "success", "message": "All endpoints reset to enabled"}
 
 
 if __name__ == "__main__":

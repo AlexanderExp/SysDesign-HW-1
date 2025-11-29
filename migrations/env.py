@@ -1,34 +1,34 @@
 import os
 import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from dotenv import load_dotenv
 
 # Add the project root to Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from shared.shared.db.models import Base
 
+# Load environment variables from .env.local
+env_file = Path(__file__).parent.parent / ".env.local"
+load_dotenv(env_file)
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
-# Load environment variables from .env.local if it exists
-env_local_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env.local")
-if os.path.exists(env_local_path):
-    from dotenv import load_dotenv
-
-    load_dotenv(env_local_path)
-
-# Set the database URL from environment variable
-database_url = os.getenv("DATABASE_URL", "sqlite:///./rental_system.db")
-config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Set DATABASE_URL from .env
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

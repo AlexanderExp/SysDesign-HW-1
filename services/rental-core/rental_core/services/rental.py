@@ -38,22 +38,18 @@ class RentalService:
     def start_rental(
         self, request: StartRentalRequest, idempotency_key: str
     ) -> RentalStatusResponse:
-        logger.info(
-            f"Starting rental with quote {request.quote_id}, idempotency key: {idempotency_key}"
-        )
+        logger.info(f"Starting rental {request.quote_id}")
 
         cached_response = self.idempotency_repo.get_cached_response(idempotency_key)
         if cached_response:
-            logger.info(
-                f"Returning cached response for idempotency key: {idempotency_key}"
-            )
+            logger.debug(f"Returning cached response for {idempotency_key}")
             return RentalStatusResponse(**cached_response)
 
         quote = self.quote_service.get_and_validate_quote(request.quote_id)
 
         eject_response = self.external_client.eject_powerbank(quote.station_id)
         if not eject_response.success:
-            logger.error(f"Failed to eject powerbank from station {quote.station_id}")
+            logger.warning(f"Eject failed for station {quote.station_id}")
             raise EjectFailedException()
 
         now = datetime.now(timezone.utc)
@@ -94,7 +90,7 @@ class RentalService:
 
         self.quote_service.consume_quote(request.quote_id)
 
-        logger.info(f"Rental {rental.id} started successfully")
+        logger.info(f"Rental started: {rental.id}")
         return RentalStatusResponse(**response_data)
 
     def stop_rental(self, order_id: str, request: StopRentalRequest) -> RentalStatusResponse:

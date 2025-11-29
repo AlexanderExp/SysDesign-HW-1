@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     external_base: str = "http://external-stubs:3629"
     http_timeout_sec: float = 1.5
 
+    # Circuit Breaker settings
+    cb_payment_fail_max: int = 3  # Max failures for payment operations
+    cb_payment_reset_timeout: int = 60  # Reset timeout in seconds
+
     # Billing settings
     billing_tick_sec: int = 30
     r_buyout: int = 5000

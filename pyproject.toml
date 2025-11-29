@@ -6,8 +6,8 @@ requires-python = ">=3.11,<3.12"
 dependencies = [
     "requests>=2.32.5",
     "shared",
-    "psycopg2-binary>=2.9.9",
-    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.11",
+    "sqlalchemy>=2.0.44",
 ]
 
 [tool.uv.sources]
@@ -15,8 +15,11 @@ shared = { path = "./shared", editable = true }
 
 [dependency-groups]
 dev = [
-    "ruff",
-    "alembic"
+    "ruff>=0.14.6",
+    "alembic>=1.17.2",
+    "pytest>=9.0.1",
+    "pytest-watch>=4.2.0",
+    "pybreaker>=1.4.1",
 ]
 
 [workspace]

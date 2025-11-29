@@ -40,11 +40,6 @@ class DebtRepository:
             logger.debug(f"Created new debt for rental {rental_id}: {amount}")
 
     def reduce_debt(self, rental_id: str, amount: int) -> bool:
-        """Reduce debt amount.
-
-        Returns:
-            bool: True if debt was reduced, False if not enough debt
-        """
         debt = self.get_by_rental_id(rental_id)
         if not debt or debt.amount_total < amount:
             return False
