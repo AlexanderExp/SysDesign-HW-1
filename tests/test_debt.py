@@ -1,4 +1,3 @@
-"""Tests for debt handling and retry logic."""
 import os
 import uuid
 
@@ -14,22 +13,23 @@ def stop_external_service(external_base):
     # In real test, you'd use docker SDK or compose commands
     # For now, this is a placeholder showing the concept
     import subprocess
-    
+
     try:
         subprocess.run(
             ["docker", "compose", "stop", "external-stubs"],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         yield
     finally:
         subprocess.run(
             ["docker", "compose", "start", "external-stubs"],
             check=True,
-            capture_output=True
+            capture_output=True,
         )
         # Wait for service to be ready
         import time
+
         time.sleep(3)
 
 
@@ -37,47 +37,52 @@ def stop_external_service(external_base):
 @pytest.mark.billing
 @pytest.mark.slow
 @pytest.mark.skipif(
-    os.getenv("SKIP_DEBT_TESTS") == "1",
-    reason="Debt tests require docker control"
+    os.getenv("SKIP_DEBT_TESTS") == "1", reason="Debt tests require docker control"
 )
 def test_debt_created_on_payment_failure(
-    api_client, db_session, test_user_id, test_station_id,
-    wait_for_billing, cleanup_db, stop_external_service
+    api_client,
+    db_session,
+    test_user_id,
+    test_station_id,
+    wait_for_billing,
+    cleanup_db,
+    stop_external_service,
 ):
     """Test that debt is created when payment fails."""
     # Create and start rental
     quote_response = api_client.post(
         "/api/v1/rentals/quote",
-        json={"station_id": test_station_id, "user_id": test_user_id}
+        json={"station_id": test_station_id, "user_id": test_user_id},
     )
     quote_id = quote_response.json()["quote_id"]
-    
+
     start_response = api_client.post(
         "/api/v1/rentals/start",
         json={"quote_id": quote_id},
-        headers={"Idempotency-Key": str(uuid.uuid4())}
+        headers={"Idempotency-Key": str(uuid.uuid4())},
     )
     order_id = start_response.json()["order_id"]
-    
+
     # Simulate time passing
     db_session.execute(
-        text("UPDATE rentals SET started_at = NOW() - INTERVAL '90 minutes' WHERE id = :id"),
-        {"id": order_id}
+        text(
+            "UPDATE rentals SET started_at = NOW() - INTERVAL '90 minutes' WHERE id = :id"
+        ),
+        {"id": order_id},
     )
     db_session.commit()
-    
+
     # Wait for billing worker (should fail and create debt)
     wait_for_billing(20)
-    
+
     # Check debt was created
     debt = db_session.execute(
-        text("SELECT amount_total FROM debts WHERE rental_id = :id"),
-        {"id": order_id}
+        text("SELECT amount_total FROM debts WHERE rental_id = :id"), {"id": order_id}
     ).fetchone()
-    
+
     assert debt is not None, "Debt should be created on payment failure"
     assert debt.amount_total > 0, "Debt amount should be positive"
-    
+
     # Check payment attempts show failures
     failed_attempts = db_session.execute(
         text("""
@@ -85,9 +90,9 @@ def test_debt_created_on_payment_failure(
             FROM payment_attempts 
             WHERE rental_id = :id AND success = false
         """),
-        {"id": order_id}
+        {"id": order_id},
     ).fetchone()
-    
+
     assert failed_attempts.count > 0, "Should have failed payment attempts"
 
 
@@ -95,44 +100,42 @@ def test_debt_created_on_payment_failure(
 @pytest.mark.billing
 @pytest.mark.slow
 def test_debt_retry_with_backoff(
-    api_client, db_session, test_user_id, test_station_id,
-    wait_for_billing, cleanup_db
+    api_client, db_session, test_user_id, test_station_id, wait_for_billing, cleanup_db
 ):
     """Test that debt retry uses exponential backoff."""
     # This test checks that attempts increase over time
     # Create a rental and manually set debt
     quote_response = api_client.post(
         "/api/v1/rentals/quote",
-        json={"station_id": test_station_id, "user_id": test_user_id}
+        json={"station_id": test_station_id, "user_id": test_user_id},
     )
     quote_id = quote_response.json()["quote_id"]
-    
+
     start_response = api_client.post(
         "/api/v1/rentals/start",
         json={"quote_id": quote_id},
-        headers={"Idempotency-Key": str(uuid.uuid4())}
+        headers={"Idempotency-Key": str(uuid.uuid4())},
     )
     order_id = start_response.json()["order_id"]
-    
+
     # Manually create debt
     db_session.execute(
         text("""
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts, last_attempt_at)
             VALUES (:id, 100, NOW(), 0, NOW() - INTERVAL '2 hours')
         """),
-        {"id": order_id}
+        {"id": order_id},
     )
     db_session.commit()
-    
+
     # Wait for billing worker
     wait_for_billing(15)
-    
+
     # Check that attempt was made
     debt = db_session.execute(
-        text("SELECT attempts FROM debts WHERE rental_id = :id"),
-        {"id": order_id}
+        text("SELECT attempts FROM debts WHERE rental_id = :id"), {"id": order_id}
     ).fetchone()
-    
+
     # Attempts should have increased (debt collection was tried)
     assert debt.attempts >= 0
 
@@ -141,24 +144,23 @@ def test_debt_retry_with_backoff(
 @pytest.mark.billing
 @pytest.mark.slow
 def test_debt_collection_success(
-    api_client, db_session, test_user_id, test_station_id,
-    wait_for_billing, cleanup_db
+    api_client, db_session, test_user_id, test_station_id, wait_for_billing, cleanup_db
 ):
     """Test that debt is collected when payment succeeds."""
     # Create rental with some charges
     quote_response = api_client.post(
         "/api/v1/rentals/quote",
-        json={"station_id": test_station_id, "user_id": test_user_id}
+        json={"station_id": test_station_id, "user_id": test_user_id},
     )
     quote_id = quote_response.json()["quote_id"]
-    
+
     start_response = api_client.post(
         "/api/v1/rentals/start",
         json={"quote_id": quote_id},
-        headers={"Idempotency-Key": str(uuid.uuid4())}
+        headers={"Idempotency-Key": str(uuid.uuid4())},
     )
     order_id = start_response.json()["order_id"]
-    
+
     # Manually create small debt (that can be collected)
     db_session.execute(
         text("""
@@ -167,24 +169,27 @@ def test_debt_collection_success(
             ON CONFLICT (rental_id) DO UPDATE 
             SET amount_total = debts.amount_total + 50
         """),
-        {"id": order_id}
+        {"id": order_id},
     )
     db_session.commit()
-    
-    initial_debt = db_session.execute(
-        text("SELECT amount_total FROM debts WHERE rental_id = :id"),
-        {"id": order_id}
-    ).fetchone().amount_total
-    
+
+    initial_debt = (
+        db_session.execute(
+            text("SELECT amount_total FROM debts WHERE rental_id = :id"),
+            {"id": order_id},
+        )
+        .fetchone()
+        .amount_total
+    )
+
     # Wait for debt collection
     wait_for_billing(20)
-    
+
     # Check if debt was reduced
     final_debt_row = db_session.execute(
-        text("SELECT amount_total FROM debts WHERE rental_id = :id"),
-        {"id": order_id}
+        text("SELECT amount_total FROM debts WHERE rental_id = :id"), {"id": order_id}
     ).fetchone()
-    
+
     if final_debt_row:
         final_debt = final_debt_row.amount_total
         # Debt should be reduced or cleared
@@ -199,27 +204,27 @@ def test_debt_visible_in_status(
     # Create rental
     quote_response = api_client.post(
         "/api/v1/rentals/quote",
-        json={"station_id": test_station_id, "user_id": test_user_id}
+        json={"station_id": test_station_id, "user_id": test_user_id},
     )
     quote_id = quote_response.json()["quote_id"]
-    
+
     start_response = api_client.post(
         "/api/v1/rentals/start",
         json={"quote_id": quote_id},
-        headers={"Idempotency-Key": str(uuid.uuid4())}
+        headers={"Idempotency-Key": str(uuid.uuid4())},
     )
     order_id = start_response.json()["order_id"]
-    
+
     # Manually add debt
     db_session.execute(
         text("""
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts)
             VALUES (:id, 150, NOW(), 0)
         """),
-        {"id": order_id}
+        {"id": order_id},
     )
     db_session.commit()
-    
+
     # Check status includes debt
     status = api_client.get(f"/api/v1/rentals/{order_id}/status")
     assert status["debt"] == 150, "Debt should be visible in status"

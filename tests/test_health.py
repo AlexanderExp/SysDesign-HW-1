@@ -1,4 +1,3 @@
-# health-check вместо ручных curl
 import pytest
 
 

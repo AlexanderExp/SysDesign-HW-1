@@ -27,8 +27,7 @@ def _create_rental(api_client, test_user_id: str, test_station_id: str) -> str:
 
 def _rewind_started_at(db_session, rental_id: str, minutes: int) -> None:
     """
-    Сдвигаем started_at аренды назад на N минут, как это делали
-    bash-скрипты, чтобы смоделировать "прошло время".
+    Сдвигаем started_at аренды назад на N минут, чтобы смоделировать "прошло время".
     """
     db_session.execute(
         text(
@@ -49,9 +48,10 @@ def _get_payment_stats(db_session, rental_id: str):
     - attempts_ok: успешных попыток
     - amount_sum: сумма успешных списаний
     """
-    row = db_session.execute(
-        text(
-            """
+    row = (
+        db_session.execute(
+            text(
+                """
             SELECT
                 COUNT(*)::int AS attempts_total,
                 COALESCE(SUM(CASE WHEN success THEN 1 ELSE 0 END), 0)::int
@@ -61,9 +61,12 @@ def _get_payment_stats(db_session, rental_id: str):
             FROM payment_attempts
             WHERE rental_id = :id
             """
-        ),
-        {"id": rental_id},
-    ).mappings().one()
+            ),
+            {"id": rental_id},
+        )
+        .mappings()
+        .one()
+    )
 
     return {
         "attempts_total": row["attempts_total"],
@@ -105,10 +108,10 @@ def test_periodic_billing_produces_successful_charges(
     cleanup_db,
 ):
     """
-    По мотивам scripts/test_billing_periodic.sh:
+    Тест периодического биллинга:
 
     - создаём аренду
-    - несколько раз «ускоряем время» через UPDATE started_at
+    - несколько раз "ускоряем время" через UPDATE started_at
     - ждём биллинг
     - ожидаем хотя бы одну успешную попытку списания и сумму > 0.
     """
@@ -145,7 +148,7 @@ def test_buyout_paid_only_stops_new_charges(
     cleanup_db,
 ):
     """
-    По мотивам scripts/test_buyout_auto_finish.sh и test_billing_buyout_paid_only.sh:
+    Тест выкупа с оплаченной арендой:
 
     - создаём аренду
     - сильно отматываем started_at в прошлое -> накапливается много платежей
@@ -200,7 +203,7 @@ def test_buyout_with_existing_debt_collected_and_stops(
     cleanup_db,
 ):
     """
-    По мотивам scripts/test_billing_mixed_paid_and_debt.sh:
+    Тест выкупа с существующим долгом:
 
     - создаём аренду и даём ей немного "накопиться" (успешные списания)
     - затем вручную добавляем долг в таблицу debts

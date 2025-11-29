@@ -23,7 +23,9 @@ def external_base() -> str:
 @pytest.fixture(scope="session")
 def database_url() -> str:
     """Database connection URL."""
-    return os.getenv("DATABASE_URL", "postgresql+psycopg2://app:app@localhost:5432/rental")
+    return os.getenv(
+        "DATABASE_URL", "postgresql+psycopg2://app:app@localhost:5432/rental"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -48,18 +50,19 @@ def db_session(db_engine) -> Generator[Session, None, None]:
 @pytest.fixture
 def api_client(base_url: str):
     """HTTP client for API requests."""
+
     class APIClient:
         def __init__(self, base_url: str):
             self.base_url = base_url.rstrip("/")
             self.session = requests.Session()
             self.session.headers.update({"Content-Type": "application/json"})
-        
+
         def get(self, path: str, **kwargs):
             url = f"{self.base_url}/{path.lstrip('/')}"
             response = self.session.get(url, **kwargs)
             response.raise_for_status()
             return response.json()
-        
+
         def post(self, path: str, json=None, headers=None, **kwargs):
             url = f"{self.base_url}/{path.lstrip('/')}"
             all_headers = {**self.session.headers}
@@ -67,15 +70,17 @@ def api_client(base_url: str):
                 all_headers.update(headers)
             response = self.session.post(url, json=json, headers=all_headers, **kwargs)
             return response
-    
+
     return APIClient(base_url)
 
 
 @pytest.fixture
 def wait_for_billing():
     """Helper to wait for billing worker to process."""
+
     def _wait(seconds: int = 3):
         time.sleep(seconds)
+
     return _wait
 
 
@@ -106,12 +111,6 @@ def test_station_id() -> str:
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "integration: mark test as integration test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "billing: mark test as billing-related"
-    )
+    config.addinivalue_line("markers", "integration: mark test as integration test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "billing: mark test as billing-related")

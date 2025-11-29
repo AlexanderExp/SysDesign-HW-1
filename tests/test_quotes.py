@@ -1,4 +1,3 @@
-# создание и “протухание” оффера
 import uuid
 
 import pytest
@@ -27,10 +26,7 @@ def test_create_quote_persisted(
 
     # Проверяем, что запись появилась в таблице quotes
     row = db_session.execute(
-        text(
-            "SELECT id, user_id, station_id "
-            "FROM quotes WHERE id = :id"
-        ),
+        text("SELECT id, user_id, station_id FROM quotes WHERE id = :id"),
         {"id": quote_id},
     ).fetchone()
 
@@ -49,7 +45,7 @@ def test_start_with_expired_quote_returns_4xx(
     cleanup_db,
 ):
     """
-    Поведение как в scripts/test_offer_freshness.sh:
+    Тест протухшего оффера:
 
     1. Создаём свежий quote через API
     2. Насильно протухаем его в БД (expires_at < now)
@@ -66,9 +62,7 @@ def test_start_with_expired_quote_returns_4xx(
     # 2. Протухаем его в БД
     db_session.execute(
         text(
-            "UPDATE quotes "
-            "SET expires_at = NOW() - INTERVAL '5 minutes' "
-            "WHERE id = :id"
+            "UPDATE quotes SET expires_at = NOW() - INTERVAL '5 minutes' WHERE id = :id"
         ),
         {"id": quote_id},
     )
