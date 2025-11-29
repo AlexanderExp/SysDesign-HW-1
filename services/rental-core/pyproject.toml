@@ -15,8 +15,17 @@ dependencies = [
     "psycopg2-binary~=2.9.9",
     "redis~=7.1.0",
     "loguru>=0.7.3",
+    "pybreaker~=1.0.2",
     "shared",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]
+
+[tool.uv]
+package = true
 
 [tool.uv.sources]
 shared = { path = "../../shared" }

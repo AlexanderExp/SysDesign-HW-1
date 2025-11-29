@@ -7,6 +7,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from rental_core.config.settings import Settings
+from rental_core.core.circuit_breaker import CircuitBreakerConfig
 
 
 class StationData:
@@ -61,6 +62,11 @@ class ExternalClient:
         self._timeout = settings.http_timeout_sec
         self._external_base = settings.external_base
         self._tariff_cache = TTLCache(maxsize=1024, ttl=settings.tariff_ttl_sec)
+        
+        self._cb_config = CircuitBreakerConfig(settings)
+        self._station_breaker = self._cb_config.get_station_breaker()
+        self._payment_breaker = self._cb_config.get_payment_breaker()
+        self._profile_breaker = self._cb_config.get_profile_breaker()
 
     def _build_session(self) -> requests.Session:
         session = requests.Session()
@@ -97,33 +103,42 @@ class ExternalClient:
         return response.json() if response.content else {}
 
     def get_station_data(self, station_id: str) -> StationData:
-        data = self._get("/station-data", {"id": station_id})
-        slots = [
-            Slot(index=s["index"], empty=s["empty"], charge=s["charge"])
-            for s in data["slots"]
-        ]
-        return StationData(
-            id=station_id,
-            tariff_id=data["tariff_id"],
-            location=data["location"],
-            slots=slots,
-        )
+        @self._station_breaker
+        def _get_station_data():
+            data = self._get("/station-data", {"id": station_id})
+            slots = [
+                Slot(index=s["index"], empty=s["empty"], charge=s["charge"])
+                for s in data["slots"]
+            ]
+            return StationData(
+                id=station_id,
+                tariff_id=data["tariff_id"],
+                location=data["location"],
+                slots=slots,
+            )
+        
+        return _get_station_data()
 
     def get_tariff(self, zone_id: str) -> Tariff:
         @cached(cache=self._tariff_cache)
         def _get_tariff_cached(zone_id: str) -> Tariff:
-            data = self._get("/tariff", {"id": zone_id})
-            return Tariff(
-                id=zone_id,
-                price_per_hour=int(data["price_per_hour"]),
-                free_period_min=int(data["free_period_min"]),
-                default_deposit=int(data["default_deposit"]),
-            )
+            @self._station_breaker
+            def _get_tariff_data():
+                data = self._get("/tariff", {"id": zone_id})
+                return Tariff(
+                    id=zone_id,
+                    price_per_hour=int(data["price_per_hour"]),
+                    free_period_min=int(data["free_period_min"]),
+                    default_deposit=int(data["default_deposit"]),
+                )
+            
+            return _get_tariff_data()
 
         return _get_tariff_cached(zone_id)
 
     def get_user_profile(self, user_id: str) -> UserProfile:
-        try:
+        @self._profile_breaker
+        def _get_user_profile():
             data = self._get("/user-profile", {"id": user_id})
             profile = UserProfile(
                 id=user_id,
@@ -132,6 +147,9 @@ class ExternalClient:
             )
             setattr(profile, "_from_fallback", False)
             return profile
+        
+        try:
+            return _get_user_profile()
         except Exception:
             profile = UserProfile(id=user_id, has_subscribtion=False, trusted=False)
             setattr(profile, "_from_fallback", True)
@@ -142,13 +160,18 @@ class ExternalClient:
         return ConfigMap(data)
 
     def eject_powerbank(self, station_id: str) -> EjectResponse:
-        data = self._get("/eject-powerbank", {"station_id": station_id})
-        return EjectResponse(success=data["success"], powerbank_id=data["powerbank_id"])
+        @self._station_breaker
+        def _eject_powerbank():
+            data = self._get("/eject-powerbank", {"station_id": station_id})
+            return EjectResponse(success=data["success"], powerbank_id=data["powerbank_id"])
+        
+        return _eject_powerbank()
 
     def hold_money_for_order(
         self, user_id: str, order_id: str, amount: int
     ) -> Tuple[bool, Optional[str]]:
-        try:
+        @self._payment_breaker
+        def _hold_money():
             self._post(
                 "/hold-money-for-order",
                 {"user_id": user_id, "order_id": order_id, "amount": amount},
@@ -157,17 +180,24 @@ class ExternalClient:
                 f"Successfully held {amount} for user {user_id}, order {order_id}"
             )
             return True, None
+        
+        try:
+            return _hold_money()
         except Exception as e:
             error_msg = str(e)
             logger.warning(
                 f"Failed to hold {amount} for user {user_id}, order {order_id}: {error_msg}"
             )
             return False, error_msg
+    
+    def get_circuit_breaker_stats(self):
+        return self._cb_config.get_breaker_stats()
 
     def clear_money_for_order(
         self, user_id: str, order_id: str, amount: int
     ) -> Tuple[bool, Optional[str]]:
-        try:
+        @self._payment_breaker
+        def _clear_money():
             self._post(
                 "/clear-money-for-order",
                 {"user_id": user_id, "order_id": order_id, "amount": amount},
@@ -176,6 +206,9 @@ class ExternalClient:
                 f"Successfully charged {amount} for user {user_id}, order {order_id}"
             )
             return True, None
+        
+        try:
+            return _clear_money()
         except Exception as e:
             error_msg = str(e)
             logger.warning(

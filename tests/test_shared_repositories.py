@@ -21,6 +21,7 @@ from shared.db.repositories.debt import DebtRepository
 
 # ---------- IdempotencyRepository ----------
 
+
 def test_idempotency_repository_empty(db_session):
     repo = IdempotencyRepository(db_session)
 
@@ -51,6 +52,7 @@ def test_idempotency_repository_create_and_get_cached_response(db_session):
 
 # ---------- PaymentRepository ----------
 
+
 def test_payment_repository_create_and_total_paid(db_session):
     repo = PaymentRepository(db_session)
 
@@ -77,6 +79,7 @@ def test_payment_repository_total_paid_zero_for_unknown_rental(db_session):
 
 
 # ---------- QuoteRepository ----------
+
 
 def test_quote_repository_create_get_delete(db_session):
     repo = QuoteRepository(db_session)
@@ -114,6 +117,7 @@ def test_quote_repository_create_get_delete(db_session):
 
 
 # ---------- RentalRepository ----------
+
 
 def _make_rental(
     rental_id: str,
@@ -217,6 +221,7 @@ def test_rental_repository_calculate_due_amount_with_free_period(db_session):
 
 
 # ---------- DebtRepository ----------
+
 
 def test_debt_repository_add_and_get_amount(db_session):
     repo = DebtRepository(db_session)

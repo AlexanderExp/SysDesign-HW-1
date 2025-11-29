@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     external_base: str = "http://external-stubs:3629"
     http_timeout_sec: float = 1.5
 
+    # Circuit Breaker settings
+    cb_station_fail_max: int = 5  # Max failures for station operations
+    cb_station_reset_timeout: int = 30  # Reset timeout in seconds
+    cb_payment_fail_max: int = 3  # Max failures for payment operations
+    cb_payment_reset_timeout: int = 60  # Reset timeout in seconds
+    cb_profile_fail_max: int = 10  # Max failures for profile operations
+    cb_profile_reset_timeout: int = 15  # Reset timeout in seconds
+
     # Tariffs cache
     tariff_ttl_sec: int = 600  # 10 minutes
 

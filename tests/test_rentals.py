@@ -1,4 +1,3 @@
-# идемпотентность и ошибка на несуществующий quote
 import uuid
 
 import pytest
@@ -12,7 +11,7 @@ def test_start_is_idempotent(
     cleanup_db,
 ):
     """
-    Поведение как в scripts/test_idempotency_and_errors.sh:
+    Тест идемпотентности:
 
     - создаём quote
     - дважды вызываем /rentals/start с одним и тем же Idempotency-Key
@@ -48,9 +47,9 @@ def test_start_is_idempotent(
     order_id_2 = s2.json()["order_id"]
     assert order_id_2
 
-    assert (
-        order_id_1 == order_id_2
-    ), f"Идемпотентность нарушена: {order_id_1} != {order_id_2}"
+    assert order_id_1 == order_id_2, (
+        f"Идемпотентность нарушена: {order_id_1} != {order_id_2}"
+    )
 
 
 @pytest.mark.integration
@@ -59,7 +58,7 @@ def test_start_with_invalid_quote_returns_4xx(
     cleanup_db,
 ):
     """
-    Вторая часть scripts/test_idempotency_and_errors.sh:
+    Тест ошибки при старте с невалидным quote:
 
     - вызываем /rentals/start с несуществующим quote_id
     - ожидаем 4xx (ошибка валидации/бизнес-логики, но не 2xx).

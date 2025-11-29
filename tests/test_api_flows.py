@@ -8,7 +8,7 @@ from sqlalchemy import text
 @pytest.mark.integration
 def test_health_ok(api_client):
     """
-    Простой health-check вместо curl из bash:
+    Простой health-check:
     /api/v1/health должен вернуть 200 и какой-то JSON.
     """
     data = api_client.get("/api/v1/health")
@@ -25,7 +25,7 @@ def test_start_is_idempotent(
     cleanup_db,
 ):
     """
-    Поведение как в scripts/test_idempotency_and_errors.sh:
+    Тест идемпотентности:
 
     1. создаём quote
     2. дважды вызываем /rentals/start с одинаковым Idempotency-Key
@@ -77,7 +77,7 @@ def test_start_with_invalid_quote_returns_4xx(
     cleanup_db,
 ):
     """
-    Вторая часть test_idempotency_and_errors.sh:
+    Тест ошибки при старте с невалидным quote:
 
     Стартуем аренду с несуществующим quote_id -> ожидаем 4xx.
     """
@@ -101,7 +101,7 @@ def test_start_with_expired_quote_returns_4xx(
     cleanup_db,
 ):
     """
-    Поведение как в scripts/test_offer_freshness.sh:
+    Тест протухшего оффера:
 
     1. создаём quote через API
     2. в БД принудительно делаем expires_at << now
@@ -118,9 +118,7 @@ def test_start_with_expired_quote_returns_4xx(
     # 2. протухаем его в БД
     db_session.execute(
         text(
-            "UPDATE quotes "
-            "SET expires_at = NOW() - INTERVAL '5 minutes' "
-            "WHERE id = :id"
+            "UPDATE quotes SET expires_at = NOW() - INTERVAL '5 minutes' WHERE id = :id"
         ),
         {"id": quote_id},
     )

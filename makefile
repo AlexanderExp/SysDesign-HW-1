@@ -12,25 +12,25 @@ help:
 	@echo "  make clean-test        - Clean test artifacts"
 
 setup-test:
-	pip install -r tests/requirements.txt
+	uv sync
 
 test:
-	pytest tests/ -v
+	uv run pytest tests/ -v
 
 test-fast:
-	pytest tests/ -v -m "not slow"
+	uv run pytest tests/ -v -m "not slow"
 
 test-integration:
-	pytest tests/ -v -m integration
+	uv run pytest tests/ -v -m integration
 
 test-billing:
-	pytest tests/ -v -m billing
+	uv run pytest tests/ -v -m billing
 
 test-coverage:
-	pytest tests/ -v --cov=services --cov-report=html --cov-report=term
+	uv run pytest tests/ -v --cov=services --cov-report=html --cov-report=term
 
 test-watch:
-	pytest-watch tests/ -v
+	uv run pytest-watch tests/ -v
 
 clean-test:
 	rm -rf .pytest_cache
@@ -61,4 +61,4 @@ test-all: up
 test-ci: up
 	@echo "Waiting for services to be ready..."
 	@sleep 10
-	pytest tests/ -v --cov=services --cov-report=xml
+	uv run pytest tests/ -v --cov=services --cov-report=xml

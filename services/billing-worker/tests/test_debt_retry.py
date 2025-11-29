@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from billing_worker.config.settings import settings
+from billing_worker.config.settings import Settings
 from billing_worker.db.models import Base, Debt, Rental
 from billing_worker.db.repositories.debt import DebtRepository
 from billing_worker.db.repositories.payment import PaymentRepository
@@ -41,9 +41,14 @@ def repositories(sqlite_session):
 
 @pytest.fixture
 def services(repositories):
+    from billing_worker.clients.external import ExternalClient
+    from billing_worker.config.settings import Settings
+    
     rental_repo, debt_repo, payment_repo = repositories
-    payment_service = PaymentService(payment_repo, rental_repo)
-    debt_service = DebtService(debt_repo, payment_repo, rental_repo)
+    settings = Settings()
+    external_client = ExternalClient(settings)
+    payment_service = PaymentService(payment_repo, rental_repo, external_client)
+    debt_service = DebtService(debt_repo, payment_repo, rental_repo, external_client, settings)
     return payment_service, debt_service
 
 
@@ -74,19 +79,19 @@ def test_backoff_calculation(services):
     _, debt_service = services
 
     # Mock settings for test
-    original_base = settings.debt_retry_base_sec
-    original_max = settings.debt_retry_max_sec
-
-    settings.debt_retry_base_sec = 60
-    settings.debt_retry_max_sec = 600
+    original_base = debt_service._debt_retry_base_sec
+    original_max = debt_service._debt_retry_max_sec
+    
+    debt_service._debt_retry_base_sec = 60
+    debt_service._debt_retry_max_sec = 600
 
     try:
         assert debt_service.calculate_backoff_seconds(0) == 60
         assert debt_service.calculate_backoff_seconds(1) == 120
         assert debt_service.calculate_backoff_seconds(4) == 600  # capped
     finally:
-        settings.debt_retry_base_sec = original_base
-        settings.debt_retry_max_sec = original_max
+        debt_service._debt_retry_base_sec = original_base
+        debt_service._debt_retry_max_sec = original_max
 
 
 def test_historical_debt_success(sqlite_session, services, monkeypatch):
@@ -121,15 +126,15 @@ def test_historical_debt_success(sqlite_session, services, monkeypatch):
     # Mock external client to always succeed
     mock_client = Mock()
     mock_client.clear_money_for_order.return_value = (True, None)
-    monkeypatch.setattr("billing_worker.services.debt.external_client", mock_client)
+    debt_service._external_client = mock_client
 
     # Mock settings
-    original_step = settings.debt_charge_step
-    settings.debt_charge_step = 100
+    original_step = debt_service._debt_charge_step
+    debt_service._debt_charge_step = 100
 
     try:
         # Test debt collection
-        charged, debt_delta = debt_service.try_collect_historical_debt("r1", now)
+        charged, debt_delta = debt_service.try_collect_historical_debt("r1")
         sqlite_session.commit()
 
         assert charged == 100
@@ -146,7 +151,7 @@ def test_historical_debt_success(sqlite_session, services, monkeypatch):
         assert updated_rental.total_amount == 100
 
     finally:
-        settings.debt_charge_step = original_step
+        debt_service._debt_charge_step = original_step
 
 
 def test_historical_debt_failure(sqlite_session, services, monkeypatch):
@@ -182,15 +187,15 @@ def test_historical_debt_failure(sqlite_session, services, monkeypatch):
     # Mock external client to always fail
     mock_client = Mock()
     mock_client.clear_money_for_order.return_value = (False, "Payment failed")
-    monkeypatch.setattr("billing_worker.services.debt.external_client", mock_client)
+    debt_service._external_client = mock_client
 
     # Mock settings
-    original_step = settings.debt_charge_step
-    settings.debt_charge_step = 100  # Will try to charge 70 (min of debt and step)
+    original_step = debt_service._debt_charge_step
+    debt_service._debt_charge_step = 100  # Will try to charge 70 (min of debt and step)
 
     try:
         # Test debt collection
-        charged, debt_delta = debt_service.try_collect_historical_debt("r2", now)
+        charged, debt_delta = debt_service.try_collect_historical_debt("r2")
         sqlite_session.commit()
 
         assert charged == 0
@@ -207,4 +212,4 @@ def test_historical_debt_failure(sqlite_session, services, monkeypatch):
         assert updated_rental.total_amount == 0
 
     finally:
-        settings.debt_charge_step = original_step
+        debt_service._debt_charge_step = original_step
