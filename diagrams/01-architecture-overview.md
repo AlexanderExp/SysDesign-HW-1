@@ -232,3 +232,176 @@ graph LR
 }
 ```
 
+---
+
+## External Services API
+
+### external-stubs (имитация внешних систем)
+
+```mermaid
+graph LR
+    subgraph "Read-only источники"
+        SD[GET /station-data]
+        T[GET /tariff]
+        UP[GET /user-profile]
+        C[GET /configs]
+    end
+    
+    subgraph "Write операции"
+        EP[POST /eject-powerbank]
+        HM[POST /hold-money-for-order]
+        CM[POST /clear-money-for-order]
+    end
+    
+    style SD fill:#3498db,stroke:#333,stroke-width:2px,color:#fff
+    style T fill:#3498db,stroke:#333,stroke-width:2px,color:#fff
+    style UP fill:#3498db,stroke:#333,stroke-width:2px,color:#fff
+    style C fill:#3498db,stroke:#333,stroke-width:2px,color:#fff
+    style EP fill:#e67e22,stroke:#333,stroke-width:2px,color:#fff
+    style HM fill:#e67e22,stroke:#333,stroke-width:2px,color:#fff
+    style CM fill:#e67e22,stroke:#333,stroke-width:2px,color:#fff
+```
+
+#### GET /station-data
+**Назначение:** Получение данных о станции
+
+**Query params:**
+- `id` - ID станции
+
+**Response 200:**
+```json
+{
+  "id": "station-456",
+  "tariff_id": "tariff-1",
+  "location": {"lat": 55.7558, "lon": 37.6173},
+  "available_powerbanks": 5
+}
+```
+
+---
+
+#### GET /tariff
+**Назначение:** Получение тарифа
+
+**Query params:**
+- `id` - ID тарифа
+
+**Response 200:**
+```json
+{
+  "id": "tariff-1",
+  "price_per_hour": 60,
+  "free_period_min": 5,
+  "deposit": 500
+}
+```
+
+---
+
+#### GET /user-profile
+**Назначение:** Получение профиля пользователя
+
+**Query params:**
+- `id` - ID пользователя
+
+**Response 200:**
+```json
+{
+  "id": "user-123",
+  "trusted": true,
+  "has_subscription": false
+}
+```
+
+---
+
+#### GET /configs
+**Назначение:** Получение конфигурации системы
+
+**Response 200:**
+```json
+{
+  "R_BUYOUT": 5000,
+  "BILLING_TICK_SEC": 30,
+  "DEBT_CHARGE_STEP": 100
+}
+```
+
+---
+
+#### POST /eject-powerbank
+**Назначение:** Выдача пауэрбанка из станции
+
+**Request:**
+```json
+{
+  "station_id": "station-456"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "powerbank_id": "pb-001"
+}
+```
+
+---
+
+#### POST /hold-money-for-order
+**Назначение:** Удержание депозита
+
+**Request:**
+```json
+{
+  "user_id": "user-123",
+  "order_id": "rental-abc",
+  "amount": 500
+}
+```
+
+**Response 200:**
+```json
+{
+  "status": "success"
+}
+```
+
+**Response 400:**
+```json
+{
+  "status": "error",
+  "message": "Insufficient funds"
+}
+```
+
+---
+
+#### POST /clear-money-for-order
+**Назначение:** Списание средств
+
+**Request:**
+```json
+{
+  "user_id": "user-123",
+  "order_id": "rental-abc",
+  "amount": 100
+}
+```
+
+**Response 200:**
+```json
+{
+  "status": "success"
+}
+```
+
+**Response 400:**
+```json
+{
+  "status": "error",
+  "message": "Insufficient funds"
+}
+```
+
