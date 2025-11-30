@@ -28,7 +28,7 @@ class DebtService:
 
     def calculate_backoff_seconds(self, attempts: int) -> int:
         """Calculate backoff window in seconds using exponential backoff.
-        
+
         Formula: base * 2^attempts, capped at max
         Example: 60 * 2^0=60s, 60 * 2^1=120s, 60 * 2^2=240s, ...
         """

@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
@@ -22,7 +21,7 @@ def test_start_is_idempotent(
     db_session,
     test_user_id,
     test_station_id,
-    cleanup_db,
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест идемпотентности:
@@ -74,7 +73,7 @@ def test_start_is_idempotent(
 @pytest.mark.integration
 def test_start_with_invalid_quote_returns_4xx(
     api_client,
-    cleanup_db,
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест ошибки при старте с невалидным quote:
@@ -98,7 +97,7 @@ def test_start_with_expired_quote_returns_4xx(
     db_session,
     test_user_id,
     test_station_id,
-    cleanup_db,
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест протухшего оффера:

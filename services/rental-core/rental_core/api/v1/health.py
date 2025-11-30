@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from rental_core.schemas import HealthResponse
 from rental_core.clients.external import ExternalClient
 from rental_core.config.settings import Settings
+from rental_core.schemas import HealthResponse
 
 router = APIRouter()
 
@@ -18,5 +18,5 @@ def circuit_breaker_health():
     external_client = ExternalClient(settings)
     return {
         "circuit_breakers": external_client.get_circuit_breaker_stats(),
-        "status": "ok"
+        "status": "ok",
     }

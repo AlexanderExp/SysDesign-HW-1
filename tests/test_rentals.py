@@ -1,23 +1,19 @@
 import uuid
 
 import pytest
+from sqlalchemy import text
 
 
 @pytest.mark.integration
-def test_start_is_idempotent(
+def test_rental_stop_flow(
     api_client,
+    db_session,
     test_user_id,
     test_station_id,
-    cleanup_db,
+    cleanup_db,  # noqa: ARG001
 ):
-    """
-    Тест идемпотентности:
-
-    - создаём quote
-    - дважды вызываем /rentals/start с одним и тем же Idempotency-Key
-    - ожидаем одинаковый order_id
-    """
-    # Создаём quote
+    """Test complete rental flow: create -> start -> stop."""
+    # Create quote
     q_resp = api_client.post(
         "/api/v1/rentals/quote",
         json={"station_id": test_station_id, "user_id": test_user_id},
@@ -25,51 +21,32 @@ def test_start_is_idempotent(
     assert q_resp.status_code == 200
     quote_id = q_resp.json()["quote_id"]
 
-    idem_key = str(uuid.uuid4())
-
-    # Первый start
-    s1 = api_client.post(
+    # Start rental
+    s_resp = api_client.post(
         "/api/v1/rentals/start",
         json={"quote_id": quote_id},
-        headers={"Idempotency-Key": idem_key},
-    )
-    assert s1.status_code == 200
-    order_id_1 = s1.json()["order_id"]
-    assert order_id_1
-
-    # Повторный start с тем же ключом
-    s2 = api_client.post(
-        "/api/v1/rentals/start",
-        json={"quote_id": quote_id},
-        headers={"Idempotency-Key": idem_key},
-    )
-    assert s2.status_code == 200
-    order_id_2 = s2.json()["order_id"]
-    assert order_id_2
-
-    assert order_id_1 == order_id_2, (
-        f"Идемпотентность нарушена: {order_id_1} != {order_id_2}"
-    )
-
-
-@pytest.mark.integration
-def test_start_with_invalid_quote_returns_4xx(
-    api_client,
-    cleanup_db,
-):
-    """
-    Тест ошибки при старте с невалидным quote:
-
-    - вызываем /rentals/start с несуществующим quote_id
-    - ожидаем 4xx (ошибка валидации/бизнес-логики, но не 2xx).
-    """
-    resp = api_client.post(
-        "/api/v1/rentals/start",
-        json={"quote_id": "non-existing"},
         headers={"Idempotency-Key": str(uuid.uuid4())},
     )
+    assert s_resp.status_code == 200
+    order_id = s_resp.json()["order_id"]
 
-    assert 400 <= resp.status_code < 500, (
-        f"Ожидали 4xx на невалидный quote_id, "
-        f"получили {resp.status_code} и тело {resp.text!r}"
+    # Verify rental is active
+    row = db_session.execute(
+        text("SELECT status FROM rentals WHERE id = :id"),
+        {"id": order_id},
+    ).fetchone()
+    assert row.status == "ACTIVE"
+
+    # Stop rental
+    stop_resp = api_client.post(
+        f"/api/v1/rentals/{order_id}/stop",
+        json={"station_id": test_station_id},
     )
+    assert stop_resp.status_code == 200
+
+    # Verify rental is finished
+    row = db_session.execute(
+        text("SELECT status FROM rentals WHERE id = :id"),
+        {"id": order_id},
+    ).fetchone()
+    assert row.status == "FINISHED"

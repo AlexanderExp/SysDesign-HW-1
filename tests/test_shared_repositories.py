@@ -2,29 +2,18 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
 from shared.db.models import (
-    Base,
     Rental,
-    Debt,
-    Quote,
-    IdempotencyKey,
-    PaymentAttempt,
 )
+from shared.db.repositories.debt import DebtRepository
 from shared.db.repositories.idempotency import IdempotencyRepository
 from shared.db.repositories.payment import PaymentRepository
 from shared.db.repositories.quote import QuoteRepository
 from shared.db.repositories.rental import RentalRepository
-from shared.db.repositories.debt import DebtRepository
-
-
-# ---------- IdempotencyRepository ----------
 
 
 def test_idempotency_repository_empty(db_session):
     repo = IdempotencyRepository(db_session)
-
     assert repo.get_idempotency_key("no-such-key") is None
     assert repo.get_cached_response("no-such-key") is None
 
@@ -40,7 +29,6 @@ def test_idempotency_repository_create_and_get_cached_response(db_session):
     repo.create_idempotency_key(key, scope, user_id, response)
 
     record = repo.get_idempotency_key(key)
-    assert record is not None
     assert record.key == key
     assert record.scope == scope
     assert record.user_id == user_id
@@ -50,23 +38,16 @@ def test_idempotency_repository_create_and_get_cached_response(db_session):
     assert cached == response
 
 
-# ---------- PaymentRepository ----------
-
-
 def test_payment_repository_create_and_total_paid(db_session):
     repo = PaymentRepository(db_session)
-
     rental_id = "r1"
-    # 2 успешных + 1 неуспешная
+
     repo.create_payment_attempt(rental_id, 100, True)
     repo.create_payment_attempt(rental_id, 200, True)
     repo.create_payment_attempt(rental_id, 300, False, error="fail")
 
-    total = repo.get_total_paid(rental_id)
-    assert total == 300  # 100 + 200
-
-    attempts = repo.get_payment_attempts(rental_id)
-    assert len(attempts) == 3
+    assert repo.get_total_paid(rental_id) == 300
+    assert len(repo.get_payment_attempts(rental_id)) == 3
 
     successful = repo.get_successful_payments(rental_id)
     assert len(successful) == 2
@@ -78,12 +59,8 @@ def test_payment_repository_total_paid_zero_for_unknown_rental(db_session):
     assert repo.get_total_paid("unknown") == 0
 
 
-# ---------- QuoteRepository ----------
-
-
 def test_quote_repository_create_get_delete(db_session):
     repo = QuoteRepository(db_session)
-
     quote_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(hours=1)
@@ -100,7 +77,6 @@ def test_quote_repository_create_get_delete(db_session):
     )
 
     q = repo.get_quote(quote_id)
-    assert q is not None
     assert q.id == quote_id
     assert q.user_id == "user-42"
     assert q.station_id == "station-1"
@@ -114,9 +90,6 @@ def test_quote_repository_create_get_delete(db_session):
 
     # повторный delete не падает
     repo.delete_quote(quote_id)
-
-
-# ---------- RentalRepository ----------
 
 
 def _make_rental(
@@ -220,19 +193,14 @@ def test_rental_repository_calculate_due_amount_with_free_period(db_session):
     assert repo.calculate_due_amount(rental_no_start, t_after) == 0
 
 
-# ---------- DebtRepository ----------
-
-
 def test_debt_repository_add_and_get_amount(db_session):
     repo = DebtRepository(db_session)
     rental_id = "r-debt-1"
 
     assert repo.get_amount(rental_id) == 0
-
     repo.add_debt(rental_id, 200)
     assert repo.get_amount(rental_id) == 200
 
-    # повторное добавление
     repo.add_debt(rental_id, 50)
     assert repo.get_amount(rental_id) == 250
 
@@ -241,24 +209,18 @@ def test_debt_repository_reduce_and_attempts(db_session):
     repo = DebtRepository(db_session)
     rental_id = "r-debt-2"
 
-    # создаём долг 300
     repo.add_debt(rental_id, 300)
     debt = repo.get_by_rental_id(rental_id)
-    assert debt is not None
     assert debt.amount_total == 300
 
-    # попытка списать больше, чем есть — False
     assert repo.reduce_debt(rental_id, 400) is False
     assert repo.get_amount(rental_id) == 300
 
-    # успешное уменьшение
     assert repo.reduce_debt(rental_id, 200) is True
     debt = repo.get_by_rental_id(rental_id)
     assert debt.amount_total == 100
-    # attempts должен сброситься в 0
     assert debt.attempts == 0
 
-    # increment_attempts
     repo.increment_attempts(rental_id)
     repo.increment_attempts(rental_id)
     debt = repo.get_by_rental_id(rental_id)
@@ -270,18 +232,14 @@ def test_debt_repository_should_retry_debt(db_session):
     repo = DebtRepository(db_session)
     rental_id = "r-debt-3"
 
-    # без долга — нельзя ретраить
     assert repo.should_retry_debt(rental_id, backoff_seconds=10) is False
 
-    # создаём долг и ни разу не пытались — можно ретраить сразу
     repo.add_debt(rental_id, 100)
     assert repo.should_retry_debt(rental_id, backoff_seconds=10) is True
 
-    # выставим last_attempt_at = сейчас
     debt = repo.get_by_rental_id(rental_id)
     debt.last_attempt_at = datetime.now(timezone.utc)
     db_session.commit()
-
     assert repo.should_retry_debt(rental_id, backoff_seconds=3600) is False
 
 
@@ -290,14 +248,11 @@ def test_debt_repository_attach_debt(db_session):
     rental_id = "r-debt-4"
     now = datetime.now(timezone.utc)
 
-    # новый долг
     repo.attach_debt(rental_id, 50, now)
     debt = repo.get_by_rental_id(rental_id)
-    assert debt is not None
     assert debt.amount_total == 50
     assert debt.updated_at == now
 
-    # плюс ещё 70
     later = now + timedelta(minutes=5)
     repo.attach_debt(rental_id, 70, later)
     debt = repo.get_by_rental_id(rental_id)

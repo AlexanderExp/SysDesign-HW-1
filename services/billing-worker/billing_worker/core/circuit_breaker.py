@@ -1,31 +1,34 @@
-from typing import Dict, Any
-from pybreaker import CircuitBreaker
+from typing import Any, Dict
+
 from loguru import logger
+from pybreaker import CircuitBreaker
 
 from billing_worker.config.settings import Settings
 
 
-class CircuitBreakerConfig:    
+class CircuitBreakerConfig:
     def __init__(self, settings: Settings):
         self.settings = settings
         self._breakers: Dict[str, CircuitBreaker] = {}
-    
+
     def get_payment_breaker(self) -> CircuitBreaker:
         if "payment" not in self._breakers:
             self._breakers["payment"] = CircuitBreaker(
                 fail_max=self.settings.cb_payment_fail_max,
                 reset_timeout=self.settings.cb_payment_reset_timeout,
                 name="payment_operations",
-                listeners=[self._log_state_change]
+                listeners=[self._log_state_change],
             )
         return self._breakers["payment"]
-    
-    def _log_state_change(self, breaker: CircuitBreaker, old_state: str, new_state: str) -> None:
+
+    def _log_state_change(
+        self, breaker: CircuitBreaker, old_state: str, new_state: str
+    ) -> None:
         logger.warning(
             f"Circuit Breaker '{breaker.name}' state changed: {old_state} -> {new_state}. "
             f"Failures: {breaker.fail_counter}/{breaker.fail_max}"
         )
-    
+
     def get_breaker_stats(self) -> Dict[str, Dict[str, Any]]:
         stats = {}
         for name, breaker in self._breakers.items():
@@ -34,6 +37,6 @@ class CircuitBreakerConfig:
                 "fail_counter": breaker.fail_counter,
                 "fail_max": breaker.fail_max,
                 "reset_timeout": breaker.reset_timeout,
-                "last_failure": getattr(breaker, "last_failure", None)
+                "last_failure": getattr(breaker, "last_failure", None),
             }
         return stats

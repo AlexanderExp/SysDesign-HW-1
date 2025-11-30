@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from model import EjectResponse, Slot, StationData, Tariff, UserProfile
@@ -15,7 +15,7 @@ async def get_station_data(
 ):
     if disabled_endpoints.get("station-data", False):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    
+
     if id is None:
         raise HTTPException(
             status_code=400, detail="ID parameter is required and cannot be empty."
@@ -33,7 +33,7 @@ async def get_tariff(
 ):
     if disabled_endpoints.get("tariff", False):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    
+
     if id is None:
         raise HTTPException(
             status_code=400, detail="ID parameter is required and cannot be empty."
@@ -49,7 +49,7 @@ async def get_user_profile(
 ):
     if disabled_endpoints.get("user-profile", False):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    
+
     if id is None:
         raise HTTPException(
             status_code=400, detail="ID parameter is required and cannot be empty."
@@ -62,7 +62,7 @@ async def get_user_profile(
 async def get_configs():
     if disabled_endpoints.get("configs", False):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    
+
     return {"price_coeff_settings": {"last_banks_increase": 1.5}}
 
 
@@ -72,7 +72,7 @@ async def eject_powerbank(
 ):
     if disabled_endpoints.get("eject-powerbank", False):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    
+
     if station_id is None:
         raise HTTPException(
             status_code=400,
@@ -95,7 +95,7 @@ class MoneyRequest(BaseModel):
 async def hold_money_for_order(request: MoneyRequest):
     if disabled_endpoints.get("hold-money-for-order", False):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    
+
     if request.user_id is None:
         raise HTTPException(
             status_code=400, detail="user_id parameter is required and cannot be empty."
@@ -107,7 +107,7 @@ async def hold_money_for_order(request: MoneyRequest):
 async def clear_money_for_order(request: MoneyRequest):
     if disabled_endpoints.get("clear-money-for-order", False):
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    
+
     if request.user_id is None:
         raise HTTPException(
             status_code=400, detail="user_id parameter is required and cannot be empty."
@@ -123,7 +123,11 @@ class EndpointControlRequest(BaseModel):
 @app.post("/admin/disable-endpoint")
 async def disable_endpoint(request: EndpointControlRequest):
     disabled_endpoints[request.endpoint] = request.disabled
-    return {"status": "success", "endpoint": request.endpoint, "disabled": request.disabled}
+    return {
+        "status": "success",
+        "endpoint": request.endpoint,
+        "disabled": request.disabled,
+    }
 
 
 @app.get("/admin/status")
@@ -137,8 +141,8 @@ async def get_admin_status():
             "configs",
             "eject-powerbank",
             "hold-money-for-order",
-            "clear-money-for-order"
-        ]
+            "clear-money-for-order",
+        ],
     }
 
 

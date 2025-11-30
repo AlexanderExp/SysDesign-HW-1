@@ -13,7 +13,7 @@ class ExternalClient:
         self._session.headers.update({"User-Agent": "billing-worker/1.0"})
         self._timeout = settings.http_timeout_sec
         self._external_base = settings.external_base
-        
+
         self._cb_config = CircuitBreakerConfig(settings)
         self._payment_breaker = self._cb_config.get_payment_breaker()
 
@@ -36,7 +36,7 @@ class ExternalClient:
                 f"Successfully charged {amount} for user {user_id}, order {order_id}"
             )
             return True, None
-        
+
         try:
             return _clear_money()
         except Exception as e:
@@ -45,6 +45,6 @@ class ExternalClient:
                 f"Failed to charge {amount} for user {user_id}, order {order_id}: {error_msg}"
             )
             return False, error_msg
-    
+
     def get_circuit_breaker_stats(self):
         return self._cb_config.get_breaker_stats()
