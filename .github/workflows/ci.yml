@@ -56,8 +56,11 @@ jobs:
       
     - name: Wait for services to be ready
       run: |
-        echo "Waiting for database to be healthy..."
-        timeout 60 bash -c 'until docker compose ps db | grep -q "healthy"; do sleep 2; done'
+        echo "Waiting for rental database to be healthy..."
+        timeout 60 bash -c 'until docker compose ps db-rental | grep -q "healthy"; do sleep 2; done'
+
+        echo "Waiting for billing database to be healthy..."
+        timeout 60 bash -c 'until docker compose ps db-billing | grep -q "healthy"; do sleep 2; done'
         
         echo "Waiting for external-stubs to be healthy..."
         timeout 60 bash -c 'until docker compose ps external-stubs | grep -q "healthy"; do sleep 2; done'

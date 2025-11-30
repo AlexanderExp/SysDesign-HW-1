@@ -12,6 +12,15 @@ help:
 	@echo "  make clean-test        - Clean test artifacts"
 	@echo "  make lint              - Run linter checks"
 	@echo "  make format            - Format code"
+	@echo "  make up                - Start Docker services"
+	@echo "  make down              - Stop Docker services"
+	@echo "  make logs              - Show Docker logs"
+	@echo "  make restart           - Restart rental-core and billing-worker"
+	@echo "  make test-all          - Start services, run tests, stop services"
+	@echo "  make test-ci           - Run CI test workflow"
+	@echo "  make migrate-rental    - Run rental database migrations"
+	@echo "  make migrate-billing   - Run billing database migrations"
+	@echo "  make migrate-all       - Run all database migrations"
 
 setup-test:
 	uv sync
