@@ -61,29 +61,40 @@ jobs:
 
         echo "Waiting for billing database to be healthy..."
         timeout 60 bash -c 'until docker compose ps db-billing | grep -q "healthy"; do sleep 2; done'
-        
+
+        echo "Running database migrations..."
+        make migrate-rental
+        make migrate-billing
+
+        echo "Verifying database tables exist..."
+        docker exec $(docker compose ps -q db-rental) psql -U app -d rental -c "\dt" || echo "No tables in rental DB"
+        docker exec $(docker compose ps -q db-billing) psql -U app -d billing -c "\dt" || echo "No tables in billing DB"
+
+        echo "Restarting application services after migrations..."
+        docker compose restart rental-core billing-worker
+
         echo "Waiting for external-stubs to be healthy..."
         timeout 60 bash -c 'until docker compose ps external-stubs | grep -q "healthy"; do sleep 2; done'
-        
+
         echo "Waiting for rental-core to be up..."
         timeout 60 bash -c 'until docker compose ps rental-core | grep -q "Up"; do sleep 2; done'
-        
+
         echo "Waiting for billing-worker to be up..."
         timeout 60 bash -c 'until docker compose ps billing-worker | grep -q "Up"; do sleep 2; done'
-        
+
         echo "Waiting for HTTP services to respond..."
         timeout 60 bash -c 'until curl -f http://localhost:3629/configs >/dev/null 2>&1; do echo "Waiting for external-stubs..."; sleep 2; done'
         timeout 60 bash -c 'until curl -f http://localhost:8000/health >/dev/null 2>&1; do echo "Waiting for rental-core..."; sleep 2; done'
-        
+
         echo "All services are ready!"
         docker compose ps
-        
+
         echo "Checking service logs for errors..."
         echo "=== rental-core logs ==="
         docker compose logs rental-core --tail=20
         echo "=== external-stubs logs ==="
         docker compose logs external-stubs --tail=10
-        
+
         echo "Service endpoints:"
         curl -s http://localhost:3629/configs | head -3 || echo "external-stubs not responding"
         curl -s http://localhost:8000/health || echo "rental-core not responding"
