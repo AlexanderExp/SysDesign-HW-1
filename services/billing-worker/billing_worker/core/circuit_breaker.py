@@ -7,8 +7,8 @@ from billing_worker.config.settings import Settings
 
 
 class LoggingListener(CircuitBreakerListener):
-    """
-    Listener для логирования изменений состояния circuit breaker'а.
+    """Listener для логирования изменений состояния circuit breaker'а.
+
     Наследуемся от CircuitBreakerListener, чтобы у него были все
     нужные методы (before_call, after_call, failure, state_change, ...).
     """
@@ -32,8 +32,8 @@ class CircuitBreakerConfig:
         self._listeners = [LoggingListener()]
 
     def get_payment_breaker(self) -> CircuitBreaker:
-        """
-        Circuit breaker для платежных операций.
+        """Circuit breaker для платежных операций.
+
         ВАЖНО: возвращаем ИМЕННО экземпляр CircuitBreaker.
         """
         if "payment" not in self._breakers:

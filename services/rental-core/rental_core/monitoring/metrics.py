@@ -11,7 +11,7 @@ rentals_total = Counter(
 quotes_total = Counter(
     "rental_system_quotes_total",
     "Total number of quotes created",
-    ["service"]  # service=rental-core
+    ["service"],  # service=rental-core
 )
 
 rental_duration_seconds = Histogram(
@@ -24,26 +24,34 @@ rental_duration_seconds = Histogram(
 active_rentals_gauge = Gauge(
     "rental_system_active_rentals_current",
     "Current number of active rentals",
-    ["service"]  # service=rental-core
+    ["service"],  # service=rental-core
 )
 
 # Technical metrics - shared across services
 circuit_breaker_state = Gauge(
     "rental_system_circuit_breaker_state",
     "Circuit breaker state (0=closed, 1=open, 2=half_open)",
-    ["service", "circuit_name"],  # service=rental-core/billing-worker, circuit_name=station/payment/profile
+    [
+        "service",
+        "circuit_name",
+    ],  # service=rental-core/billing-worker, circuit_name=station/payment/profile
 )
 
 circuit_breaker_failures = Counter(
     "rental_system_circuit_breaker_failures_total",
     "Total circuit breaker failures",
-    ["service", "circuit_name"]
+    ["service", "circuit_name"],
 )
 
 external_api_requests = Counter(
     "rental_system_external_api_requests_total",
     "Total external API requests",
-    ["service", "api_service", "endpoint", "status"],  # service=rental-core/billing-worker
+    [
+        "service",
+        "api_service",
+        "endpoint",
+        "status",
+    ],  # service=rental-core/billing-worker
 )
 
 external_api_duration = Histogram(
@@ -56,7 +64,10 @@ external_api_duration = Histogram(
 database_connections = Gauge(
     "rental_system_database_connections_active",
     "Active database connections",
-    ["service", "database"]  # service=rental-core/billing-worker, database=rental/billing
+    [
+        "service",
+        "database",
+    ],  # service=rental-core/billing-worker, database=rental/billing
 )
 
 database_query_duration = Histogram(

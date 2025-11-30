@@ -4,7 +4,7 @@ from prometheus_client import Counter, Gauge, Histogram, Info, start_http_server
 billing_cycles_total = Counter(
     "rental_system_billing_cycles_total",
     "Total number of billing cycles processed",
-    ["service"]  # service=billing-worker
+    ["service"],  # service=billing-worker
 )
 
 payment_attempts_total = Counter(
@@ -22,7 +22,7 @@ payment_amount_total = Counter(
 debt_amount_gauge = Gauge(
     "rental_system_debt_amount_current",
     "Current total debt amount in kopecks",
-    ["service"]  # service=billing-worker
+    ["service"],  # service=billing-worker
 )
 
 debt_operations_total = Counter(
@@ -34,7 +34,7 @@ debt_operations_total = Counter(
 active_rentals_processed = Gauge(
     "rental_system_active_rentals_processed_last_cycle",
     "Number of active rentals processed in last billing cycle",
-    ["service"]  # service=billing-worker
+    ["service"],  # service=billing-worker
 )
 
 billing_cycle_duration = Histogram(
@@ -67,13 +67,13 @@ circuit_breaker_state = Gauge(
 circuit_breaker_failures = Counter(
     "rental_system_circuit_breaker_failures_total",
     "Total circuit breaker failures",
-    ["service", "circuit_name"]
+    ["service", "circuit_name"],
 )
 
 database_connections = Gauge(
     "rental_system_database_connections_active",
     "Active database connections",
-    ["service", "database"]  # service=billing-worker, database=billing
+    ["service", "database"],  # service=billing-worker, database=billing
 )
 
 database_query_duration = Histogram(
@@ -86,7 +86,7 @@ database_query_duration = Histogram(
 worker_errors_total = Counter(
     "rental_system_worker_errors_total",
     "Total worker errors",
-    ["service", "error_type"]  # service=billing-worker
+    ["service", "error_type"],  # service=billing-worker
 )
 
 # Application info
@@ -94,7 +94,9 @@ app_info = Info("rental_system_app_info", "Application information")
 
 
 def init_app_info(version: str = "1.0.0"):
-    app_info.info({"version": version, "service": "billing-worker", "component": "worker"})
+    app_info.info(
+        {"version": version, "service": "billing-worker", "component": "worker"}
+    )
 
 
 def start_metrics_server(port: int = 8001):
@@ -103,16 +105,22 @@ def start_metrics_server(port: int = 8001):
 
 class MetricsCollector:
     SERVICE_NAME = "billing-worker"
-    
+
     @staticmethod
     def record_payment_attempt(success: bool, amount: int):
         status = "success" if success else "failure"
-        payment_attempts_total.labels(service=MetricsCollector.SERVICE_NAME, status=status).inc()
-        payment_amount_total.labels(service=MetricsCollector.SERVICE_NAME, status=status).inc(amount)
+        payment_attempts_total.labels(
+            service=MetricsCollector.SERVICE_NAME, status=status
+        ).inc()
+        payment_amount_total.labels(
+            service=MetricsCollector.SERVICE_NAME, status=status
+        ).inc(amount)
 
     @staticmethod
     def record_debt_operation(operation: str, amount: int = 0):
-        debt_operations_total.labels(service=MetricsCollector.SERVICE_NAME, operation=operation).inc()
+        debt_operations_total.labels(
+            service=MetricsCollector.SERVICE_NAME, operation=operation
+        ).inc()
         if operation == "add":
             debt_amount_gauge.labels(service=MetricsCollector.SERVICE_NAME).inc(amount)
         elif operation == "reduce":
@@ -121,8 +129,12 @@ class MetricsCollector:
     @staticmethod
     def record_billing_cycle(duration: float, active_rentals: int):
         billing_cycles_total.labels(service=MetricsCollector.SERVICE_NAME).inc()
-        billing_cycle_duration.labels(service=MetricsCollector.SERVICE_NAME).observe(duration)
-        active_rentals_processed.labels(service=MetricsCollector.SERVICE_NAME).set(active_rentals)
+        billing_cycle_duration.labels(service=MetricsCollector.SERVICE_NAME).observe(
+            duration
+        )
+        active_rentals_processed.labels(service=MetricsCollector.SERVICE_NAME).set(
+            active_rentals
+        )
 
     @staticmethod
     def record_external_api_call(
@@ -133,27 +145,25 @@ class MetricsCollector:
             service=MetricsCollector.SERVICE_NAME,
             api_service=api_service,
             endpoint=endpoint,
-            status=status
+            status=status,
         ).inc()
         external_api_duration.labels(
             service=MetricsCollector.SERVICE_NAME,
             api_service=api_service,
-            endpoint=endpoint
+            endpoint=endpoint,
         ).observe(duration)
 
     @staticmethod
     def record_circuit_breaker_state(circuit_name: str, state: str):
         state_value = {"closed": 0, "open": 1, "half_open": 2}.get(state, 0)
         circuit_breaker_state.labels(
-            service=MetricsCollector.SERVICE_NAME,
-            circuit_name=circuit_name
+            service=MetricsCollector.SERVICE_NAME, circuit_name=circuit_name
         ).set(state_value)
 
     @staticmethod
     def record_circuit_breaker_failure(circuit_name: str):
         circuit_breaker_failures.labels(
-            service=MetricsCollector.SERVICE_NAME,
-            circuit_name=circuit_name
+            service=MetricsCollector.SERVICE_NAME, circuit_name=circuit_name
         ).inc()
 
     @staticmethod
@@ -161,19 +171,17 @@ class MetricsCollector:
         database_query_duration.labels(
             service=MetricsCollector.SERVICE_NAME,
             database=database,
-            operation=operation
+            operation=operation,
         ).observe(duration)
 
     @staticmethod
     def record_worker_error(error_type: str):
         worker_errors_total.labels(
-            service=MetricsCollector.SERVICE_NAME,
-            error_type=error_type
+            service=MetricsCollector.SERVICE_NAME, error_type=error_type
         ).inc()
-        
+
     @staticmethod
     def record_database_connections(database: str, count: int):
         database_connections.labels(
-            service=MetricsCollector.SERVICE_NAME,
-            database=database
+            service=MetricsCollector.SERVICE_NAME, database=database
         ).set(count)

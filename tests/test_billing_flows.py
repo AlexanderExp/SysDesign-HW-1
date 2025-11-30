@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import pytest
 from sqlalchemy import text
 
-
 # ---------- Фиксация конфигурации биллинга для тестов ----------
 
 

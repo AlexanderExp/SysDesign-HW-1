@@ -20,9 +20,7 @@ class ExternalClient:
         self._payment_breaker = self._cb_config.get_payment_breaker()
 
     def _post(self, path: str, payload: dict):
-        """
-        Low-level POST helper.
-        """
+        """Low-level POST helper."""
         url = f"{self._external_base.rstrip('/')}/{path.lstrip('/')}"
         response = self._session.post(url, json=payload, timeout=self._timeout)
         response.raise_for_status()
@@ -31,10 +29,11 @@ class ExternalClient:
     def clear_money_for_order(
         self, user_id: str, order_id: str, amount: int
     ) -> Tuple[bool, Optional[str]]:
-        """
-        Try to charge money for an order via external service.
+        """Try to charge money for an order via external service.
+
         Returns (success, error_message).
         """
+
         @self._payment_breaker
         def _clear_money():
             self._post(
