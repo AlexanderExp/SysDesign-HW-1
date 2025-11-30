@@ -8,6 +8,44 @@ from shared.db.models import Base, Debt, PaymentAttempt
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
+from shared.db.models import (
+    Base,
+    Rental,
+    Quote,
+    IdempotencyKey,
+    PaymentAttempt,
+    Debt,
+)
+
+@pytest.fixture(autouse=True, scope="module")
+def _billing_env(monkeypatch):
+    # Значения, с которыми написана логика тестов
+    monkeypatch.setenv("BILLING_TICK_SEC", "5")
+    monkeypatch.setenv("R_BUYOUT", "50")
+    # если нужно — можно ещё что-нибудь подправить
+    yield
+
+@pytest.fixture(scope="session", autouse=True)
+def init_main_schema(db_engine):
+    """
+    Создаём shared-схему в основной тестовой БД.
+    Это нужно для тестов репозиториев, которые используют db_session.
+    """
+    engine = db_engine
+
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            Rental.__table__,
+            Quote.__table__,
+            IdempotencyKey.__table__,
+            PaymentAttempt.__table__,
+            Debt.__table__,
+        ],
+    )
+
+    yield
+
 
 @pytest.fixture(scope="session")
 def base_url() -> str:

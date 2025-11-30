@@ -5,6 +5,24 @@ from dataclasses import dataclass
 import pytest
 from sqlalchemy import text
 
+
+# ---------- Фиксация конфигурации биллинга для тестов ----------
+
+
+@pytest.fixture(autouse=True)
+def _billing_env(monkeypatch):
+    """
+    Фиксируем значения env, от которых зависят тесты.
+
+    ВАЖНО: эти значения должны совпадать с конфигом billing-worker,
+    который крутится в docker (BILLING_TICK_SEC и R_BUYOUT),
+    иначе тесты и реальный воркер будут считать разный buyout / шаг тиков.
+    """
+    monkeypatch.setenv("BILLING_TICK_SEC", "10")
+    monkeypatch.setenv("R_BUYOUT", "5000")
+    yield
+
+
 # ---------- Вспомогательные штуки ----------
 
 
