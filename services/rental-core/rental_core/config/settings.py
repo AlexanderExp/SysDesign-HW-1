@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     )
 
     # Database: основная БД rental-core
-    database_url: str = "postgresql+psycopg2://app:app@db:5432/rental"
+    database_url: str = "postgresql+psycopg2://app:app@db-rental:5432/rental"
 
     # Database: БД для долгов и платежей
     billing_database_url: str = "postgresql+psycopg2://app:app@db-billing:5432/billing"

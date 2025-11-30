@@ -70,21 +70,47 @@ jobs:
         docker exec $(docker compose ps -q db-rental) psql -U app -d rental -c "\dt" || echo "No tables in rental DB"
         docker exec $(docker compose ps -q db-billing) psql -U app -d billing -c "\dt" || echo "No tables in billing DB"
 
+        echo "Ensuring external-stubs is ready first..."
+        timeout 60 bash -c 'until docker compose ps external-stubs | grep -q "healthy"; do sleep 2; done'
+        
         echo "Restarting application services after migrations..."
         docker compose restart rental-core billing-worker
-
-        echo "Waiting for external-stubs to be healthy..."
-        timeout 60 bash -c 'until docker compose ps external-stubs | grep -q "healthy"; do sleep 2; done'
-
+        
         echo "Waiting for rental-core to be up..."
         timeout 60 bash -c 'until docker compose ps rental-core | grep -q "Up"; do sleep 2; done'
-
+        
         echo "Waiting for billing-worker to be up..."
         timeout 60 bash -c 'until docker compose ps billing-worker | grep -q "Up"; do sleep 2; done'
 
         echo "Waiting for HTTP services to respond..."
         timeout 60 bash -c 'until curl -f http://localhost:3629/configs >/dev/null 2>&1; do echo "Waiting for external-stubs..."; sleep 2; done'
-        timeout 60 bash -c 'until curl -f http://localhost:8000/health >/dev/null 2>&1; do echo "Waiting for rental-core..."; sleep 2; done'
+        
+        echo "Checking rental-core logs before HTTP check..."
+        docker compose logs rental-core --tail=30
+        
+        echo "Checking if rental-core process is running..."
+        docker compose exec rental-core ps aux || echo "Cannot exec into rental-core"
+        
+        echo "Testing rental-core HTTP endpoint with detailed output..."
+        for i in {1..15}; do
+          echo "HTTP check attempt $i/15..."
+          if curl -f -s -w "HTTP Status: %{http_code}\n" http://localhost:8000/health; then
+            echo "✓ rental-core is responding to HTTP requests"
+            break
+          else
+            echo "✗ rental-core not responding, checking logs..."
+            docker compose logs rental-core --tail=5
+            if [ $i -eq 15 ]; then
+              echo "❌ rental-core failed to respond after 15 attempts"
+              echo "Final rental-core logs:"
+              docker compose logs rental-core --tail=50
+              echo "Container status:"
+              docker compose ps rental-core
+              exit 1
+            fi
+            sleep 4
+          fi
+        done
 
         echo "All services are ready!"
         docker compose ps
