@@ -94,7 +94,7 @@ jobs:
         echo "Testing rental-core HTTP endpoint with detailed output..."
         for i in {1..15}; do
           echo "HTTP check attempt $i/15..."
-          if curl -f -s -w "HTTP Status: %{http_code}\n" http://localhost:8000/health; then
+          if curl -f -s -w "HTTP Status: %{http_code}\n" http://localhost:8000/api/v1/health; then
             echo "✓ rental-core is responding to HTTP requests"
             break
           else
@@ -123,7 +123,7 @@ jobs:
 
         echo "Service endpoints:"
         curl -s http://localhost:3629/configs | head -3 || echo "external-stubs not responding"
-        curl -s http://localhost:8000/health || echo "rental-core not responding"
+        curl -s http://localhost:8000/api/v1/health || echo "rental-core not responding"
 
     - name: Run tests
       env:
