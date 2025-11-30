@@ -68,13 +68,13 @@ def setup_instrumentator() -> Instrumentator:
         inprogress_name="http_requests_inprogress",
         inprogress_labels=True,
     )
-    
+
     # Add default HTTP metrics - if no add() is called, default metrics are added automatically
     # We can add custom metrics here if needed:
     # instrumentator.add(metrics.latency())
     # instrumentator.add(metrics.request_size())
     # instrumentator.add(metrics.response_size())
-    
+
     return instrumentator
 
 

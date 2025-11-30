@@ -8,8 +8,6 @@ from rental_core.api.v1 import health, rentals
 from rental_core.clients.external import ExternalClient
 from rental_core.config.logging import setup_logging
 from rental_core.config.settings import Settings
-from rental_core.db.database import get_sessionmaker
-from rental_core.db.models import Base
 from rental_core.monitoring.metrics import init_app_info, setup_instrumentator
 
 
