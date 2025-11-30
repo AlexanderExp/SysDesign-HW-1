@@ -52,9 +52,6 @@ def _create_rental_with_quote(api_client, test_user_id: str, test_station_id: st
 
 
 def _rewind_started_at(db_session, rental_id: str, minutes: int) -> None:
-    """
-    Сдвигаем started_at аренды назад на N минут, чтобы смоделировать "прошло время".
-    """
     db_session.execute(
         text(
             "UPDATE rentals "
@@ -67,13 +64,6 @@ def _rewind_started_at(db_session, rental_id: str, minutes: int) -> None:
 
 
 def _get_payment_stats(db_session, rental_id: str):
-    """
-    Возвращает агрегаты по payment_attempts:
-
-    - attempts_total: всего попыток
-    - attempts_ok: успешных попыток
-    - amount_sum: сумма успешных списаний
-    """
     row = (
         db_session.execute(
             text(
@@ -93,7 +83,6 @@ def _get_payment_stats(db_session, rental_id: str):
         .mappings()
         .one()
     )
-
     return {
         "attempts_total": row["attempts_total"],
         "attempts_ok": row["attempts_ok"],
@@ -102,7 +91,6 @@ def _get_payment_stats(db_session, rental_id: str):
 
 
 def _get_debt_amount(db_session, rental_id: str) -> int:
-    """Текущий долг по аренде."""
     row = db_session.execute(
         text("SELECT amount_total FROM debts WHERE rental_id = :id"),
         {"id": rental_id},
@@ -111,7 +99,6 @@ def _get_debt_amount(db_session, rental_id: str) -> int:
 
 
 def _get_rental_status(db_session, rental_id: str) -> str:
-    """Текущий статус аренды из таблицы rentals."""
     row = db_session.execute(
         text("SELECT status FROM rentals WHERE id = :id"),
         {"id": rental_id},
@@ -179,7 +166,7 @@ def test_periodic_billing_produces_successful_charges(
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db,
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест периодического биллинга:
@@ -198,7 +185,6 @@ def test_periodic_billing_produces_successful_charges(
 
     wait_seconds = max(cfg.tick_sec * 2, 5)
 
-    # Несколько шагов "прошло времени"
     for step in range(3):
         minutes = (step + 1) * 15
         _rewind_started_at(db_session, rental_id, minutes)
@@ -221,7 +207,7 @@ def test_buyout_paid_only_stops_new_charges(
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db,
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест выкупа с оплаченной арендой (без долга):
@@ -258,11 +244,9 @@ def test_buyout_paid_only_stops_new_charges(
     stats_before = _get_payment_stats(db_session, rental_id)
     debt_before = _get_debt_amount(db_session, rental_id)
 
-    assert stats_before["amount_sum"] > 0, "К моменту buyout что-то должно быть списано"
-    assert debt_before == 0, "Сценарий paid-only: долг должен быть 0"
-    assert status_before in ("BUYOUT", "FINISHED"), (
-        f"Ожидали BUYOUT/FINISHED, получили {status_before}"
-    )
+    assert stats_before["amount_sum"] > 0
+    assert debt_before == 0
+    assert status_before in ("BUYOUT", "FINISHED")
 
     # Дополнительное ожидание: после buyout не должно появляться попыток/сумм
     status_after = _wait_until_status_in(
@@ -277,12 +261,8 @@ def test_buyout_paid_only_stops_new_charges(
     stats_after = _get_payment_stats(db_session, rental_id)
     debt_after = _get_debt_amount(db_session, rental_id)
 
-    assert stats_after["attempts_total"] == stats_before["attempts_total"], (
-        "После buyout не должно появляться новых попыток"
-    )
-    assert stats_after["amount_sum"] == stats_before["amount_sum"], (
-        "После buyout сумма успешных списаний не должна меняться"
-    )
+    assert stats_after["attempts_total"] == stats_before["attempts_total"]
+    assert stats_after["amount_sum"] == stats_before["amount_sum"]
     assert debt_after == debt_before == 0
     assert status_after in ("BUYOUT", "FINISHED")
 
@@ -296,7 +276,7 @@ def test_buyout_with_existing_debt_collected_and_stops(
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db,
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест выкупа с существующим долгом:
@@ -326,15 +306,13 @@ def test_buyout_with_existing_debt_collected_and_stops(
     initial_debt_amount = max(cfg.r_buyout, 100)
 
     db_session.execute(
-        text(
-            """
+        text("""
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts)
             VALUES (:id, :amount, NOW(), 0)
             ON CONFLICT (rental_id) DO UPDATE
               SET amount_total = debts.amount_total + EXCLUDED.amount_total,
                   updated_at = NOW()
-            """
-        ),
+            """),
         {"id": rental_id, "amount": initial_debt_amount},
     )
     db_session.commit()
@@ -355,11 +333,7 @@ def test_buyout_with_existing_debt_collected_and_stops(
     stats_after = _get_payment_stats(db_session, rental_id)
     debt_after = _get_debt_amount(db_session, rental_id)
 
-    # Долг должен уменьшиться или обнулиться
-    assert debt_after <= debt_before, (
-        f"Ожидали уменьшения долга, было {debt_before}, стало {debt_after}"
-    )
-    # Платежи могли увеличиться
+    assert debt_after <= debt_before
     assert stats_after["amount_sum"] >= stats_initial["amount_sum"]
     assert status_after in ("BUYOUT", "FINISHED")
 
@@ -376,11 +350,7 @@ def test_buyout_with_existing_debt_collected_and_stops(
     stats_final = _get_payment_stats(db_session, rental_id)
     debt_final = _get_debt_amount(db_session, rental_id)
 
-    assert stats_final["attempts_total"] == stats_after["attempts_total"], (
-        "После buyout не должно появляться новых попыток списания"
-    )
-    assert stats_final["amount_sum"] == stats_after["amount_sum"], (
-        "После buyout сумма успешных списаний не должна меняться"
-    )
-    assert debt_final == debt_after, "После buyout долг не должен меняться"
+    assert stats_final["attempts_total"] == stats_after["attempts_total"]
+    assert stats_final["amount_sum"] == stats_after["amount_sum"]
+    assert debt_final == debt_after
     assert status_final in ("BUYOUT", "FINISHED")

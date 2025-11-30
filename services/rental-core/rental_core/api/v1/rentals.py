@@ -17,6 +17,12 @@ from rental_core.core.exceptions import (
     quote_not_found_exception,
     rental_not_found_exception,
 )
+from rental_core.monitoring.metrics import (
+    active_rentals_gauge,
+    quotes_total,
+    rental_duration_seconds,
+    rentals_total,
+)
 from rental_core.schemas import (
     QuoteRequest,
     QuoteResponse,
@@ -39,6 +45,7 @@ def create_quote(
     try:
         response = quote_service.create_quote(request)
         session.commit()
+        quotes_total.inc()
         return response
     except Exception as e:
         session.rollback()
@@ -57,6 +64,10 @@ def start_rental(
     try:
         response = rental_service.start_rental(request, idempotency_key)
         session.commit()
+
+        rentals_total.labels(status="ACTIVE").inc()
+        active_rentals_gauge.inc()
+
         return response
     except QuoteNotFoundException:
         session.rollback()
@@ -83,6 +94,18 @@ def stop_rental(
     try:
         response = rental_service.stop_rental(order_id, request)
         session.commit()
+
+        if response.status in ["FINISHED", "BUYOUT"]:
+            rentals_total.labels(status=response.status).inc()
+            active_rentals_gauge.dec()
+
+            if hasattr(response, "started_at") and hasattr(response, "finished_at"):
+                if response.started_at and response.finished_at:
+                    duration = (
+                        response.finished_at - response.started_at
+                    ).total_seconds()
+                    rental_duration_seconds.observe(duration)
+
         return response
     except RentalNotFoundException:
         session.rollback()

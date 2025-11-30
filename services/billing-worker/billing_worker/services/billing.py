@@ -6,6 +6,7 @@ from billing_worker.config.settings import Settings
 from billing_worker.db.repositories.debt import DebtRepository
 from billing_worker.db.repositories.payment import PaymentRepository
 from billing_worker.db.repositories.rental import RentalRepository
+from billing_worker.monitoring.metrics import MetricsCollector
 from billing_worker.schemas import AllRentalsBillingResult, RentalBillingResult
 from billing_worker.services.debt import DebtService
 from billing_worker.services.payment import PaymentService
@@ -40,12 +41,16 @@ class BillingService:
         paid_amount = self._payment_service.get_total_paid(rental_id)
         debt_amount = self._debt_service.get_debt_amount(rental_id)
 
-        logger.debug(f"Rental {rental_id}: due={due_amount}, paid={paid_amount}, debt={debt_amount}")
+        logger.debug(
+            f"Rental {rental_id}: due={due_amount}, paid={paid_amount}, debt={debt_amount}"
+        )
 
         # Check for buyout condition
         if (paid_amount + debt_amount) >= self._r_buyout:
             self._rental_repo.set_buyout_status(rental_id)
-            logger.info(f"Buyout reached for rental {rental_id}: {paid_amount + debt_amount}")
+            logger.info(
+                f"Buyout reached for rental {rental_id}: {paid_amount + debt_amount}"
+            )
             return RentalBillingResult(charged_amount=0, debt_delta=0)
 
         # Calculate amount to charge
@@ -62,11 +67,14 @@ class BillingService:
 
             if success:
                 charged_amount = to_charge
+                MetricsCollector.record_payment_attempt(True, to_charge)
                 logger.info(f"Charged {to_charge} for rental {rental_id}")
             else:
                 # Add to debt if charge failed
                 self._debt_service.add_debt(rental_id, to_charge)
                 debt_delta = to_charge
+                MetricsCollector.record_payment_attempt(False, to_charge)
+                MetricsCollector.record_debt_operation("add", to_charge)
                 logger.warning(f"Added debt {to_charge} for rental {rental_id}")
 
             # Check buyout after payment/debt
@@ -86,6 +94,10 @@ class BillingService:
             )
             charged_amount += debt_charged
             debt_delta += debt_change  # This will be negative if debt was reduced
+
+            if debt_charged > 0:
+                MetricsCollector.record_payment_attempt(True, debt_charged)
+                MetricsCollector.record_debt_operation("reduce", abs(debt_change))
 
             # Check buyout after debt collection
             if debt_charged > 0:
@@ -115,7 +127,17 @@ class BillingService:
                 total_charged += result.charged_amount
                 total_debt_delta += result.debt_delta
             except Exception as e:
+                MetricsCollector.record_worker_error("rental_processing_error")
                 logger.error(f"Error processing rental {rental_id}: {e}")
+
+        # Update debt amount gauge with current total
+        try:
+            total_debt = self._get_total_debt_amount()
+            from billing_worker.monitoring.metrics import debt_amount_gauge
+
+            debt_amount_gauge.set(total_debt)
+        except Exception as e:
+            logger.error(f"Failed to update debt gauge: {e}")
 
         logger.info(
             f"Billing tick completed: "
@@ -129,3 +151,19 @@ class BillingService:
             total_charged=total_charged,
             total_debt_delta=total_debt_delta,
         )
+
+    def _get_total_debt_amount(self) -> int:
+        # This is a simplified implementation
+        # In a real system, you might want to add a method to DebtRepository
+        # to get total debt more efficiently
+        active_rental_ids = self._rental_repo.get_active_rental_ids()
+        total_debt = 0
+
+        for rental_id in active_rental_ids:
+            try:
+                debt_amount = self._debt_repo.get_amount(rental_id)
+                total_debt += debt_amount
+            except Exception:
+                continue
+
+        return total_debt
