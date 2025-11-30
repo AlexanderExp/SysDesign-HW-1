@@ -43,10 +43,6 @@ class Settings(BaseSettings):
     # Tariffs cache
     tariff_ttl_sec: int = 600  # 10 minutes
 
-    # Redis (for offers)
-    redis_url: str = "redis://redis:6379/0"
-    offer_ttl_sec: int = 60  # offer freshness control
-
     # Pricing
     magic_low_banks: int = 2  # threshold for "low banks"
     last_banks_increase: float = 1.5  # fallback if no configs

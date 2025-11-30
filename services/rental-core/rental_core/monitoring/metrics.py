@@ -44,12 +44,6 @@ external_api_duration = Histogram(
     buckets=[0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
 )
 
-redis_operations = Counter(
-    "redis_operations_total",
-    "Total Redis operations",
-    ["operation", "status"],  # get, set, delete / success, error
-)
-
 database_connections = Gauge(
     "database_connections_active", "Active database connections"
 )

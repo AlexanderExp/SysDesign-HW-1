@@ -33,7 +33,6 @@ graph TB
         PGB[(db-billing<br/>:5434)]
         PGRR[(rental replica)]
         PGBR[(billing replica)]
-        RD[(Redis<br/>:6379)]
     end
     
     LB --> RC1
@@ -262,24 +261,6 @@ CREATE INDEX idx_debts_last_attempt ON debts(last_attempt_at);
 
 ---
 
-### 4. Redis (кеш)
-
-**Зачем нужен:**
-- Кешируем офферы (живут 60 сек)
-- Кешируем тарифы (живут 10 минут)
-- Кешируем конфиги (живут 1 минуту)
-- Можно хранить сессии
-
-**Если Redis упадет:** ничего страшного, просто будет чуть медленнее (пойдем в БД).
-
-**Масштабирование:**
-```
-Redis Cluster (3 мастера + 3 реплики)
-```
-Но при X=10 RPS хватит одного инстанса.
-
----
-
 ## Сколько железа нужно
 
 ### Для нашей нагрузки X = 10 RPS
@@ -300,13 +281,10 @@ Redis Cluster (3 мастера + 3 реплики)
 - 1 master × 2 CPU × 8 GB RAM (для billing-worker)
 - 1 replica × 1 CPU × 4 GB RAM (опционально, для аналитики)
 
-**Redis:**
-- 1 инстанс × 1 CPU × 2 GB RAM (хватит с головой)
-
 **external-stubs:**
 - 1 инстанс × 1 CPU × 1 GB RAM (заглушка)
 
-**Итого:** ~13 CPU, ~37 GB RAM (без реплик: ~9 CPU, ~25 GB RAM)
+**Итого:** ~12 CPU, ~35 GB RAM (без реплик: ~8 CPU, ~23 GB RAM)
 
 ---
 
@@ -328,10 +306,7 @@ Redis Cluster (3 мастера + 3 реплики)
 - 1 master × 4 CPU × 16 GB RAM
 - 1 replica × 2 CPU × 8 GB RAM
 
-**Redis:**
-- 3 ноды в кластере × 2 CPU × 4 GB RAM
-
-**Итого:** ~50 CPU, ~140 GB RAM
+**Итого:** ~44 CPU, ~128 GB RAM
 
 ---
 
@@ -375,7 +350,6 @@ Redis Cluster (3 мастера + 3 реплики)
 
 **Инфраструктура:**
 - DB connections pool usage
-- Redis cache hit rate
 - External API response time
 
 ### Алерты (когда бить тревогу):
@@ -388,7 +362,6 @@ Redis Cluster (3 мастера + 3 реплики)
 **Ресурсы:**
 - DB connections > 80% → Увеличить pool или добавить реплики
 - Active rentals > 5000 → Масштабировать billing-worker
-- Redis memory > 80% → Увеличить память или добавить ноды
 
 **Бизнес:**
 - Debt collection rate < 50% → Проблемы с платежами

@@ -53,7 +53,6 @@ docker compose up -d
 - **rental-core**: http://localhost:8000
 - **PostgreSQL (rental-db)**: localhost:5433 (service: `db-rental`)  
 - **PostgreSQL (billing-db)**: localhost:5434 (service: `db-billing`)
-- **Redis**: localhost:6379
 - **External stubs**: localhost:3629
 
 ### Тестирование

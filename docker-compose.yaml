@@ -33,12 +33,6 @@ services:
       timeout: 1s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-
   external-stubs:
     build:
       context: ./external-stubs
@@ -69,14 +63,14 @@ services:
         condition: service_healthy
       external-stubs:
         condition: service_healthy
-      redis:
-        condition: service_started
 
   billing-worker:
     build:
       context: .
       dockerfile: ./services/billing-worker/Dockerfile
     restart: unless-stopped
+    ports:
+      - "8001:8001"
     env_file:
       - .env
     depends_on:
@@ -85,7 +79,65 @@ services:
       external-stubs:
         condition: service_healthy
 
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - rental-core
+      - billing-worker
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
+  rental-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.13.2
+    container_name: rental-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://app:app@db-rental:5432/rental?sslmode=disable"
+    depends_on:
+      db-rental:
+        condition: service_healthy
+
+  billing-postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.13.2
+    container_name: billing-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://app:app@db-billing:5432/billing?sslmode=disable"
+    depends_on:
+      db-billing:
+        condition: service_healthy
+
+
 volumes:
   pgdata_rental:
   pgdata_billing:
-
+  prometheus_data:
+  grafana_data:
