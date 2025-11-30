@@ -313,6 +313,115 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        .endpoints-grid {
+            display: grid;
+            gap: 15px;
+        }
+
+        .endpoint-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .endpoint-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+
+        .endpoint-item.disabled {
+            opacity: 0.6;
+            border-color: #f56565;
+            background: #fed7d7;
+        }
+
+        .endpoint-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .endpoint-name {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 14px;
+        }
+
+        .endpoint-item.disabled .endpoint-name {
+            color: #c53030;
+        }
+
+        .endpoint-desc {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .endpoint-item.disabled .endpoint-desc {
+            color: #e53e3e;
+        }
+
+        /* Стили для toggle switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e0;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        input:checked + .slider {
+            background-color: #48bb78;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .slider:hover {
+            box-shadow: 0 0 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .loading-endpoints {
+            text-align: center;
+            padding: 20px;
+            color: #718096;
+        }
     </style>
 </head>
 <body>
@@ -419,33 +528,20 @@
                 <div class="info-box">
                     Включайте/выключайте эндпоинты для тестирования отказоустойчивости
                 </div>
-                <div class="form-group">
-                    <label>Эндпоинт</label>
-                    <select id="endpointSelect">
-                        <option value="station-data">station-data</option>
-                        <option value="tariff">tariff</option>
-                        <option value="user-profile">user-profile</option>
-                        <option value="configs">configs</option>
-                        <option value="eject-powerbank">eject-powerbank</option>
-                        <option value="hold-money-for-order">hold-money-for-order</option>
-                        <option value="clear-money-for-order">clear-money-for-order</option>
-                    </select>
-                </div>
                 <div class="quick-actions">
-                    <button class="btn btn-danger" onclick="disableEndpoint()">
-                        🔴 Отключить
+                    <button class="btn btn-success" onclick="resetAllEndpoints()">
+                        ✅ Включить все
                     </button>
-                    <button class="btn btn-success" onclick="enableEndpoint()">
-                        🟢 Включить
+                    <button class="btn btn-info" onclick="loadAndDisplayEndpoints()">
+                        🔄 Обновить статус
                     </button>
                 </div>
-                <button class="btn btn-info" onclick="getEndpointStatus()" style="margin-top: 10px;">
-                    📊 Статус всех эндпоинтов
-                </button>
-                <button class="btn btn-primary" onclick="resetAllEndpoints()" style="margin-top: 5px;">
-                    🔄 Сбросить все
-                </button>
-                <div id="endpointStatus" class="status-card" style="display: none;"></div>
+                <div id="endpointsContainer">
+                    <div class="loading-endpoints">
+                        <div class="spinner"></div>
+                        Загрузка эндпоинтов...
+                    </div>
+                </div>
             </div>
 
             <!-- Панель логов -->
@@ -761,59 +857,11 @@
         }
 
         // Управление эндпоинтами
-        async function disableEndpoint() {
-            const endpoint = document.getElementById('endpointSelect').value;
-            const url = `${EXTERNAL_BASE}/admin/disable-endpoint`;
-            const requestData = { endpoint: endpoint, disabled: true };
+        async function loadAndDisplayEndpoints() {
+            const container = document.getElementById('endpointsContainer');
+            container.innerHTML = '<div class="loading-endpoints"><div class="spinner"></div>Загрузка эндпоинтов...</div>';
             
-            addLog('request', 'POST', url, null, requestData);
-            
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestData)
-                });
-                
-                const data = await response.json();
-                addLog('response', 'POST', url, response.status, data);
-                
-                if (response.ok) {
-                    await getEndpointStatus();
-                }
-            } catch (error) {
-                addLog('error', 'POST', url, null, null, error.message);
-            }
-        }
-
-        async function enableEndpoint() {
-            const endpoint = document.getElementById('endpointSelect').value;
-            const url = `${EXTERNAL_BASE}/admin/disable-endpoint`;
-            const requestData = { endpoint: endpoint, disabled: false };
-            
-            addLog('request', 'POST', url, null, requestData);
-            
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestData)
-                });
-                
-                const data = await response.json();
-                addLog('response', 'POST', url, response.status, data);
-                
-                if (response.ok) {
-                    await getEndpointStatus();
-                }
-            } catch (error) {
-                addLog('error', 'POST', url, null, null, error.message);
-            }
-        }
-
-        async function getEndpointStatus() {
             const url = `${EXTERNAL_BASE}/admin/status`;
-            
             addLog('request', 'GET', url, null, null);
             
             try {
@@ -822,28 +870,75 @@
                 addLog('response', 'GET', url, response.status, data);
                 
                 if (response.ok) {
-                    const resultDiv = document.getElementById('endpointStatus');
-                    resultDiv.style.display = 'block';
+                    let endpointsHtml = '<div class="endpoints-grid">';
                     
-                    let endpointsHtml = '';
                     for (const endpoint of data.available_endpoints) {
-                        const isDisabled = data.disabled_endpoints[endpoint] || false;
-                        const statusColor = isDisabled ? '#f56565' : '#48bb78';
-                        const statusText = isDisabled ? '🔴 Отключен' : '🟢 Включен';
-                        
-                        endpointsHtml += `
-                            <div class="status-row">
-                                <span class="status-label">${endpoint}:</span>
-                                <span class="status-value" style="color: ${statusColor};">${statusText}</span>
-                            </div>
-                        `;
+                        const isEnabled = !data.disabled_endpoints[endpoint];
+                        endpointsHtml += createEndpointToggle(endpoint, isEnabled);
                     }
                     
-                    resultDiv.innerHTML = endpointsHtml;
+                    endpointsHtml += '</div>';
+                    container.innerHTML = endpointsHtml;
                 }
             } catch (error) {
                 addLog('error', 'GET', url, null, null, error.message);
+                container.innerHTML = '<div class="loading-endpoints" style="color: #f56565;">❌ Ошибка загрузки эндпоинтов</div>';
             }
+        }
+
+        function createEndpointToggle(endpoint, isEnabled) {
+            return `
+                <div class="endpoint-item ${isEnabled ? '' : 'disabled'}">
+                    <div class="endpoint-info">
+                        <div class="endpoint-name">${endpoint}</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" ${isEnabled ? 'checked' : ''}
+                               onchange="toggleEndpoint('${endpoint}', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            `;
+        }
+
+        async function toggleEndpoint(endpoint, enabled) {
+            const url = `${EXTERNAL_BASE}/admin/disable-endpoint`;
+            const requestData = { endpoint: endpoint, disabled: !enabled };
+            
+            addLog('request', 'POST', url, null, requestData);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                addLog('response', 'POST', url, response.status, data);
+                
+                if (response.ok) {
+                    updateEndpointVisualState(endpoint, enabled);
+                }
+            } catch (error) {
+                addLog('error', 'POST', url, null, null, error.message);
+                // Возвращаем переключатель в исходное состояние при ошибке
+                await loadAndDisplayEndpoints();
+            }
+        }
+
+        function updateEndpointVisualState(endpoint, enabled) {
+            const endpointItems = document.querySelectorAll('.endpoint-item');
+            endpointItems.forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                if (checkbox && checkbox.getAttribute('onchange').includes(endpoint)) {
+                    if (enabled) {
+                        item.classList.remove('disabled');
+                    } else {
+                        item.classList.add('disabled');
+                    }
+                }
+            });
         }
 
         async function resetAllEndpoints() {
@@ -861,7 +956,7 @@
                 addLog('response', 'POST', url, response.status, data);
                 
                 if (response.ok) {
-                    await getEndpointStatus();
+                    await loadAndDisplayEndpoints();
                 }
             } catch (error) {
                 addLog('error', 'POST', url, null, null, error.message);
@@ -877,13 +972,13 @@
                     addLog('response', 'GET', `${API_BASE}/api/v1/health`, 200, data);
                 }
             } catch (error) {
-                addLog('error', 'GET', `${API_BASE}/api/v1/health`, null, null, 
+                addLog('error', 'GET', `${API_BASE}/api/v1/health`, null, null,
                     'API недоступен. Убедитесь, что rental-core запущен на порту 8000');
             }
             
-            // Загружаем статус эндпоинтов
+            // Загружаем и отображаем эндпоинты
             try {
-                await getEndpointStatus();
+                await loadAndDisplayEndpoints();
             } catch (error) {
                 // Игнорируем ошибку, если external stubs не запущены
             }
