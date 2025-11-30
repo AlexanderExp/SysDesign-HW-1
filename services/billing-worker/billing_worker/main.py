@@ -39,14 +39,14 @@ def get_services(settings: Settings):
         external = ExternalClient(settings)
 
         payment_service = PaymentService(
-            rental_repo=rental_repo,
             payment_repo=payment_repo,
+            rental_repo=rental_repo,
             external_client=external,
         )
         debt_service = DebtService(
-            rental_repo=rental_repo,
             debt_repo=debt_repo,
             payment_repo=payment_repo,
+            rental_repo=rental_repo,
             external_client=external,
             settings=settings,
         )
@@ -82,7 +82,7 @@ def tick_once(settings: Settings):
             MetricsCollector.record_billing_cycle(duration, result.active_rentals)
 
             logger.info(
-                "Billing tick: tick_sec={}, r_buyout={}, active={}, charged={}, debt_delta={}",
+                "Billing tick: tick_sec=%s, r_buyout=%s, active=%s, charged=%s, debt_delta=%s",
                 settings.billing_tick_sec,
                 settings.r_buyout,
                 result.active_rentals,
@@ -106,7 +106,7 @@ def main():
     init_app_info("1.0.0")
 
     logger.info(
-        "Starting billing worker: tick_sec={}, r_buyout={}",
+        "Starting billing worker: tick_sec=%s, r_buyout=%s",
         settings.billing_tick_sec,
         settings.r_buyout,
     )

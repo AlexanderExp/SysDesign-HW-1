@@ -41,20 +41,34 @@ class BillingService:
         paid_amount = self._payment_service.get_total_paid(rental_id)
         debt_amount = self._debt_service.get_debt_amount(rental_id)
 
+        exposure = paid_amount + debt_amount
+
         logger.debug(
-            f"Rental {rental_id}: due={due_amount}, paid={paid_amount}, debt={debt_amount}"
+            "Rental %s: due=%s, paid=%s, debt=%s, exposure=%s, r_buyout=%s",
+            rental_id,
+            due_amount,
+            paid_amount,
+            debt_amount,
+            exposure,
+            self._r_buyout,
         )
 
-        # Check for buyout condition
-        if (paid_amount + debt_amount) >= self._r_buyout:
+        # Already at or above buyout?
+        if exposure >= self._r_buyout:
             self._rental_repo.set_buyout_status(rental_id)
             logger.info(
-                f"Buyout reached for rental {rental_id}: {paid_amount + debt_amount}"
+                "Buyout reached for rental %s (paid=%s, debt=%s)",
+                rental_id,
+                paid_amount,
+                debt_amount,
             )
             return RentalBillingResult(charged_amount=0, debt_delta=0)
 
-        # Calculate amount to charge
-        to_charge = due_amount - paid_amount - debt_amount
+        remaining_to_buyout = self._r_buyout - exposure
+        remaining_usage = max(0, due_amount - exposure)
+
+        # Don't charge more than both "what is really due" and "what's left till buyout"
+        to_charge = min(remaining_usage, remaining_to_buyout)
 
         charged_amount = 0
         debt_delta = 0
@@ -69,9 +83,28 @@ class BillingService:
                 charged_amount = to_charge
                 MetricsCollector.record_payment_attempt(True, to_charge)
                 logger.info(f"Charged {to_charge} for rental {rental_id}")
+                paid_amount += to_charge
+                exposure += to_charge
+                logger.info(
+                    "Charged %s for rental %s (paid=%s, debt=%s)",
+                    to_charge,
+                    rental_id,
+                    paid_amount,
+                    debt_amount,
+                )
             else:
                 # Add to debt if charge failed
                 self._debt_service.add_debt(rental_id, to_charge)
+                debt_delta += to_charge
+                debt_amount += to_charge
+                exposure += to_charge
+                logger.warning(
+                    "Added debt %s for rental %s (paid=%s, debt=%s): %s",
+                    to_charge,
+                    rental_id,
+                    paid_amount,
+                    debt_amount,
+                    error, )
                 debt_delta = to_charge
                 MetricsCollector.record_payment_attempt(False, to_charge)
                 MetricsCollector.record_debt_operation("add", to_charge)
@@ -87,14 +120,33 @@ class BillingService:
                     f"Rental {rental_id} reached buyout after billing: {new_paid + new_debt}"
                 )
 
-        # Try to collect historical debt
-        if to_charge < 1:  # Only if we didn't charge new amount
+        # If we didn't charge new usage, try to collect historical debt
+        if to_charge == 0:
             debt_charged, debt_change = self._debt_service.try_collect_historical_debt(
                 rental_id
             )
-            charged_amount += debt_charged
-            debt_delta += debt_change  # This will be negative if debt was reduced
+            if debt_charged or debt_change:
+                charged_amount += debt_charged
+                debt_delta += debt_change  # negative if debt was reduced
+                paid_amount += debt_charged
+                debt_amount += debt_change
+                exposure += debt_charged + debt_change
+                logger.info(
+                    "Collected %s from historical debt for rental %s (debt_delta=%s)",
+                    debt_charged,
+                    rental_id,
+                    debt_change,
+                )
 
+        # Final buyout check after any changes
+        if exposure >= self._r_buyout:
+            self._rental_repo.set_buyout_status(rental_id)
+            logger.info(
+                "Rental %s reached buyout after tick (paid=%s, debt=%s)",
+                rental_id,
+                paid_amount,
+                debt_amount,
+            )
             if debt_charged > 0:
                 MetricsCollector.record_payment_attempt(True, debt_charged)
                 MetricsCollector.record_debt_operation("reduce", abs(debt_change))
@@ -140,10 +192,10 @@ class BillingService:
             logger.error(f"Failed to update debt gauge: {e}")
 
         logger.info(
-            f"Billing tick completed: "
-            f"active_rentals={len(active_rental_ids)}, "
-            f"charged={total_charged}, "
-            f"debt_delta={total_debt_delta}"
+            "Billing tick completed: active_rentals=%s, charged=%s, debt_delta=%s",
+            len(active_rental_ids),
+            total_charged,
+            total_debt_delta,
         )
 
         return AllRentalsBillingResult(
@@ -151,19 +203,3 @@ class BillingService:
             total_charged=total_charged,
             total_debt_delta=total_debt_delta,
         )
-
-    def _get_total_debt_amount(self) -> int:
-        # This is a simplified implementation
-        # In a real system, you might want to add a method to DebtRepository
-        # to get total debt more efficiently
-        active_rental_ids = self._rental_repo.get_active_rental_ids()
-        total_debt = 0
-
-        for rental_id in active_rental_ids:
-            try:
-                debt_amount = self._debt_repo.get_amount(rental_id)
-                total_debt += debt_amount
-            except Exception:
-                continue
-
-        return total_debt

@@ -38,11 +38,8 @@ class DebtService:
     def try_collect_historical_debt(self, rental_id: str) -> tuple[int, int]:
         """Try to collect historical debt with exponential backoff.
 
-        Args:
-            rental_id: Rental ID
-
         Returns:
-            Tuple[int, int]: (charged_amount, debt_delta)
+            (charged_amount, debt_delta) — debt_delta отрицательный, если долг уменьшился.
         """
         debt = self._debt_repo.get_by_rental_id(rental_id)
         if not debt or debt.amount_total <= 0:
