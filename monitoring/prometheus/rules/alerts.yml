@@ -29,34 +29,34 @@ groups:
           description: "{{ $labels.job }} service is down"
 
       - alert: HighDebtAmount
-        expr: debt_amount_current > 1000000
+        expr: rental_system_debt_amount_current > 1000000
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "High total debt amount"
-          description: "Total debt amount is {{ $value }} kopecks"
+          description: "Total debt amount is {{ $value }} kopecks for {{ $labels.service }}"
 
       - alert: HighPaymentFailureRate
-        expr: rate(payment_attempts_total{status="failure"}[5m]) / rate(payment_attempts_total[5m]) > 0.2
+        expr: rate(rental_system_payment_attempts_total{status="failure"}[5m]) / rate(rental_system_payment_attempts_total[5m]) > 0.2
         for: 3m
         labels:
           severity: warning
         annotations:
           summary: "High payment failure rate"
-          description: "Payment failure rate is {{ $value | humanizePercentage }}"
+          description: "Payment failure rate is {{ $value | humanizePercentage }} for {{ $labels.service }}"
 
       - alert: CircuitBreakerOpen
-        expr: circuit_breaker_state > 0
+        expr: rental_system_circuit_breaker_state > 0
         for: 1m
         labels:
           severity: warning
         annotations:
           summary: "Circuit breaker is open"
-          description: "Circuit breaker for {{ $labels.service }} is open"
+          description: "Circuit breaker {{ $labels.circuit_name }} for {{ $labels.service }} is open"
 
       - alert: BillingWorkerStuck
-        expr: increase(billing_cycles_total[10m]) == 0
+        expr: increase(rental_system_billing_cycles_total[10m]) == 0
         for: 10m
         labels:
           severity: critical
@@ -65,19 +65,55 @@ groups:
           description: "No billing cycles processed in the last 10 minutes"
 
       - alert: HighDatabaseConnections
-        expr: database_connections_active > 50
+        expr: rental_system_database_connections_active > 50
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "High number of database connections"
-          description: "{{ $value }} active database connections"
+          description: "{{ $value }} active database connections for {{ $labels.service }}/{{ $labels.database }}"
 
       - alert: SlowDatabaseQueries
-        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m])) > 1
+        expr: histogram_quantile(0.95, rate(rental_system_database_query_duration_seconds_bucket[5m])) > 1
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Slow database queries detected"
-          description: "95th percentile query time is {{ $value }}s"
+          description: "95th percentile query time is {{ $value }}s for {{ $labels.service }}/{{ $labels.database }}"
+
+      - alert: LowRentalConversionRate
+        expr: (rate(rental_system_rentals_total{status="ACTIVE"}[1h]) / rate(rental_system_quotes_total[1h])) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low quote to rental conversion rate"
+          description: "Conversion rate is {{ $value | humanizePercentage }} - only {{ $value | humanizePercentage }} of quotes become rentals"
+
+      - alert: HighWorkerErrorRate
+        expr: rate(rental_system_worker_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High worker error rate"
+          description: "Worker error rate is {{ $value }} errors per second for {{ $labels.service }}, error type: {{ $labels.error_type }}"
+
+      - alert: ExternalAPIHighLatency
+        expr: histogram_quantile(0.95, rate(rental_system_external_api_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High external API latency"
+          description: "95th percentile latency is {{ $value }}s for {{ $labels.service }} calling {{ $labels.api_service }}/{{ $labels.endpoint }}"
+
+      - alert: NoActiveRentals
+        expr: rental_system_active_rentals_current == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No active rentals for extended period"
+          description: "No active rentals detected for 30 minutes - possible system issue"

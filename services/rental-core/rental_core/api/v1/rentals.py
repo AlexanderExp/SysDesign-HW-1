@@ -45,7 +45,7 @@ def create_quote(
     try:
         response = quote_service.create_quote(request)
         session.commit()
-        quotes_total.inc()
+        quotes_total.labels(service="rental-core").inc()
         return response
     except Exception as e:
         session.rollback()
@@ -65,8 +65,8 @@ def start_rental(
         response = rental_service.start_rental(request, idempotency_key)
         session.commit()
 
-        rentals_total.labels(status="ACTIVE").inc()
-        active_rentals_gauge.inc()
+        rentals_total.labels(service="rental-core", status="ACTIVE").inc()
+        active_rentals_gauge.labels(service="rental-core").inc()
 
         return response
     except QuoteNotFoundException:
@@ -96,8 +96,8 @@ def stop_rental(
         session.commit()
 
         if response.status in ["FINISHED", "BUYOUT"]:
-            rentals_total.labels(status=response.status).inc()
-            active_rentals_gauge.dec()
+            rentals_total.labels(service="rental-core", status=response.status).inc()
+            active_rentals_gauge.labels(service="rental-core").dec()
 
             if hasattr(response, "started_at") and hasattr(response, "finished_at"):
                 if response.started_at and response.finished_at:

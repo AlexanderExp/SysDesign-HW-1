@@ -4,18 +4,17 @@ from typing import Generator
 
 import pytest
 import requests
-from shared.db.models import Base, Debt, PaymentAttempt
+from shared.db.models import (
+    Base,
+    Debt,
+    IdempotencyKey,
+    PaymentAttempt,
+    Quote,
+    Rental,
+)
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from shared.db.models import (
-    Base,
-    Rental,
-    Quote,
-    IdempotencyKey,
-    PaymentAttempt,
-    Debt,
-)
 
 @pytest.fixture(scope="session", autouse=True)
 def init_main_schema(db_engine):

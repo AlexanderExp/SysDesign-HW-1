@@ -42,7 +42,6 @@
 ### Архитектура
 - 2 микросервиса: rental-core + billing-worker
 - 2 PostgreSQL БД: db-rental (:5433) + db-billing (:5434)
-- Redis для кеширования
 - external-stubs для имитации внешних систем
 - Prometheus (:9090) + Grafana (:3000) для мониторинга
 
@@ -56,7 +55,6 @@
 - Stateless rental-core → горизонтальное масштабирование
 - Шардирование billing-worker по rental_id
 - PostgreSQL replicas для read
-- Redis cluster для кеша
 
 ### Биллинг
 - Периодическое начисление каждые 30 сек

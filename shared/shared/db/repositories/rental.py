@@ -25,14 +25,14 @@ class RentalRepository:
         self.session.flush()
 
     def get_active_rental_ids(self) -> List[str]:
-            result = (
-                self.session.execute(select(Rental.id).where(Rental.status == "ACTIVE"))
-                .scalars()
-                .all()
-            )
-            ids = list(result)
-            logger.info(f"[DEBUG] Active rentals from {self.session.bind.url}: {ids}")
-            return ids
+        result = (
+            self.session.execute(select(Rental.id).where(Rental.status == "ACTIVE"))
+            .scalars()
+            .all()
+        )
+        ids = list(result)
+        logger.info(f"[DEBUG] Active rentals from {self.session.bind.url}: {ids}")
+        return ids
 
     def update_total_amount(self, rental_id: str, amount_delta: int) -> bool:
         rental = self.get_by_id(rental_id)
