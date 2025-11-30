@@ -33,6 +33,7 @@ class RentalStatusResponse(BaseModel):
     powerbank_id: Optional[str] = None
     total_amount: int
     debt: int = 0
+    deposit_refund: Optional[int] = None  # Остаток депозита при завершении аренды
 
 
 class HealthResponse(BaseModel):
