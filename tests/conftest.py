@@ -17,14 +17,6 @@ from shared.db.models import (
     Debt,
 )
 
-@pytest.fixture(autouse=True, scope="module")
-def _billing_env(monkeypatch):
-    # Значения, с которыми написана логика тестов
-    monkeypatch.setenv("BILLING_TICK_SEC", "5")
-    monkeypatch.setenv("R_BUYOUT", "50")
-    # если нужно — можно ещё что-нибудь подправить
-    yield
-
 @pytest.fixture(scope="session", autouse=True)
 def init_main_schema(db_engine):
     """
