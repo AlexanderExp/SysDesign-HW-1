@@ -63,8 +63,8 @@ jobs:
         timeout 60 bash -c 'until docker compose ps db-billing | grep -q "healthy"; do sleep 2; done'
 
         echo "Running database migrations..."
-        make migrate-rental
-        make migrate-billing
+        DATABASE_URL=postgresql+psycopg2://app:app@localhost:5433/rental make migrate-rental
+        BILLING_DATABASE_URL=postgresql+psycopg2://app:app@localhost:5434/billing make migrate-billing
 
         echo "Verifying database tables exist..."
         docker exec $(docker compose ps -q db-rental) psql -U app -d rental -c "\dt" || echo "No tables in rental DB"
