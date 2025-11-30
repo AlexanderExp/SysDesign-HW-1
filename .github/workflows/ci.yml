@@ -61,18 +61,25 @@ jobs:
 
         echo "Waiting for billing database to be healthy..."
         timeout 60 bash -c 'until docker compose ps db-billing | grep -q "healthy"; do sleep 2; done'
-
+        
         echo "Waiting for external-stubs to be healthy..."
         timeout 60 bash -c 'until docker compose ps external-stubs | grep -q "healthy"; do sleep 2; done'
-
+        
         echo "Waiting for rental-core to be up..."
         timeout 60 bash -c 'until docker compose ps rental-core | grep -q "Up"; do sleep 2; done'
-
+        
         echo "Waiting for billing-worker to be up..."
         timeout 60 bash -c 'until docker compose ps billing-worker | grep -q "Up"; do sleep 2; done'
-
+        
+        echo "Waiting for HTTP services to respond..."
+        timeout 60 bash -c 'until curl -f http://localhost:3629/configs >/dev/null 2>&1; do echo "Waiting for external-stubs..."; sleep 2; done'
+        timeout 60 bash -c 'until curl -f http://localhost:8000/health >/dev/null 2>&1; do echo "Waiting for rental-core..."; sleep 2; done'
+        
         echo "All services are ready!"
         docker compose ps
+        echo "Service endpoints:"
+        curl -s http://localhost:3629/configs | head -3 || echo "external-stubs not responding"
+        curl -s http://localhost:8000/health || echo "rental-core not responding"
 
     - name: Run tests
       run: make test
