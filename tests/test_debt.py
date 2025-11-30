@@ -9,7 +9,7 @@ from sqlalchemy import text
 @pytest.mark.slow
 def test_debt_retry_with_backoff(
     api_client,
-    db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
@@ -31,20 +31,20 @@ def test_debt_retry_with_backoff(
     order_id = start_response.json()["order_id"]
 
     # Manually create debt
-    db_session.execute(
+    billing_db_session.execute(
         text("""
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts, last_attempt_at)
             VALUES (:id, 100, NOW(), 0, NOW() - INTERVAL '2 hours')
         """),
         {"id": order_id},
     )
-    db_session.commit()
+    billing_db_session.commit()
 
     # Wait for billing worker
     wait_for_billing(15)
 
     # Check that attempt was made
-    debt = db_session.execute(
+    debt = billing_db_session.execute(
         text("SELECT attempts FROM debts WHERE rental_id = :id"), {"id": order_id}
     ).fetchone()
 
@@ -57,7 +57,7 @@ def test_debt_retry_with_backoff(
 @pytest.mark.slow
 def test_debt_collection_success(
     api_client,
-    db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
@@ -78,7 +78,7 @@ def test_debt_collection_success(
     order_id = start_response.json()["order_id"]
 
     # Manually create small debt (that can be collected)
-    db_session.execute(
+    billing_db_session.execute(
         text("""
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts, last_attempt_at)
             VALUES (:id, 50, NOW(), 0, NOW() - INTERVAL '2 hours')
@@ -87,10 +87,10 @@ def test_debt_collection_success(
         """),
         {"id": order_id},
     )
-    db_session.commit()
+    billing_db_session.commit()
 
     initial_debt = (
-        db_session.execute(
+        billing_db_session.execute(
             text("SELECT amount_total FROM debts WHERE rental_id = :id"),
             {"id": order_id},
         )
@@ -102,7 +102,7 @@ def test_debt_collection_success(
     wait_for_billing(20)
 
     # Check if debt was reduced
-    final_debt_row = db_session.execute(
+    final_debt_row = billing_db_session.execute(
         text("SELECT amount_total FROM debts WHERE rental_id = :id"), {"id": order_id}
     ).fetchone()
 
