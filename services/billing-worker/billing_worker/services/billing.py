@@ -155,9 +155,7 @@ class BillingService:
     # ---------- Агрегат по всем активным арендам ----------
 
     def _get_total_debt_amount(self) -> int:
-        """
-        Суммарный долг по всем арендам для gauge-метрики.
-        """
+        """Суммарный долг по всем арендам для gauge-метрики."""
         return self._debt_repo.get_total_debt_amount()
 
     def process_all_active_rentals(self) -> AllRentalsBillingResult:

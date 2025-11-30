@@ -1,6 +1,6 @@
+from shared.db.database import get_sessionmaker as shared_get_sessionmaker
 from sqlalchemy.orm import sessionmaker
 
-from shared.db.database import get_sessionmaker as shared_get_sessionmaker
 from billing_worker.config.settings import Settings
 
 

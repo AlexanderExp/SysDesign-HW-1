@@ -6,10 +6,6 @@ from sqlalchemy import text
 
 @pytest.mark.integration
 def test_health_ok(api_client):
-    """
-    Простой health-check:
-    /api/v1/health должен вернуть 200 и какой-то JSON.
-    """
     data = api_client.get("/api/v1/health")
     assert isinstance(data, dict)
     assert data  # не пустой словарь
@@ -23,13 +19,6 @@ def test_start_is_idempotent(
     test_station_id,
     cleanup_db,  # noqa: ARG001
 ):
-    """
-    Тест идемпотентности:
-
-    1. создаём quote
-    2. дважды вызываем /rentals/start с одинаковым Idempotency-Key
-    3. ожидаем один и тот же order_id и одну строку rentals в БД.
-    """
     # 1. создаём quote
     q_resp = api_client.post(
         "/api/v1/rentals/quote",
@@ -75,11 +64,6 @@ def test_start_with_invalid_quote_returns_4xx(
     api_client,
     cleanup_db,  # noqa: ARG001
 ):
-    """
-    Тест ошибки при старте с невалидным quote:
-
-    Стартуем аренду с несуществующим quote_id -> ожидаем 4xx.
-    """
     resp = api_client.post(
         "/api/v1/rentals/start",
         json={"quote_id": "non-existing-quote-id"},
@@ -99,13 +83,6 @@ def test_start_with_expired_quote_returns_4xx(
     test_station_id,
     cleanup_db,  # noqa: ARG001
 ):
-    """
-    Тест протухшего оффера:
-
-    1. создаём quote через API
-    2. в БД принудительно делаем expires_at << now
-    3. пробуем /rentals/start -> ожидаем 4xx.
-    """
     # 1. создаём quote
     q_resp = api_client.post(
         "/api/v1/rentals/quote",

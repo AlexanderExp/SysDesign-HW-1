@@ -12,7 +12,7 @@ HTTP_STATUS=""
 # Внутренняя функция HTTP-запроса.
 # usage: _http_request METHOD PATH_OR_URL [DATA_JSON] [HEADER "Name: Val"]...
 #  - PATH_OR_URL: абсолютный URL или относительный путь (склеится с BASE_URL)
-#  - DATA_JSON:   опционально. Если первый «хвостовой» аргумент выглядит как "X: Y",
+#  - DATA_JSON:   опционально. Если первый "хвостовой" аргумент выглядит как "X: Y",
 #                 то считаем, что тела нет и это сразу заголовок.
 _http_request() {
   local method="$1"
@@ -22,7 +22,7 @@ _http_request() {
   # Определим, что у нас первым идёт: тело или заголовок
   local data=""
   if [[ $# -gt 0 ]]; then
-    # первый «хвостовой» аргумент
+    # первый "хвостовой" аргумент
     local maybe_body="${1-}"
     # если похоже на "Header: value", то тела нет
     if [[ "${maybe_body}" =~ ^[[:alnum:]-]+:[[:space:]] ]]; then
@@ -105,7 +105,7 @@ _http_request() {
   return 0
 }
 
-# Публичные обёртки. НИЧЕГО не «едим» — передаём хвост как есть.
+# Публичные обёртки. НИЧЕГО не "едим" — передаём хвост как есть.
 # GET: http_get_json PATH_OR_URL [HEADER ...]
 http_get_json() {
   local path_or_url="$1"; shift || true

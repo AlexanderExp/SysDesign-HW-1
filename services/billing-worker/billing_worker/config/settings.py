@@ -27,9 +27,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg2://app:app@db-rental:5432/rental"
 
     # Database: БД для долгов и платежей
-    billing_database_url: str = (
-        "postgresql+psycopg2://app:app@db-billing:5432/billing"
-    )
+    billing_database_url: str = "postgresql+psycopg2://app:app@db-billing:5432/billing"
 
     # External services
     external_base: str = "http://external-stubs:3629"

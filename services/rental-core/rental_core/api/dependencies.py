@@ -8,8 +8,8 @@ from rental_core.clients.external import ExternalClient
 from rental_core.config.settings import Settings
 from rental_core.core.exceptions import idempotency_key_missing_exception
 from rental_core.db.database import (
-    get_sessionmaker,
     get_billing_sessionmaker,
+    get_sessionmaker,
 )
 from rental_core.db.repositories.debt import DebtRepository
 from rental_core.db.repositories.idempotency import IdempotencyRepository

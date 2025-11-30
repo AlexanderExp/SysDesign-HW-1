@@ -138,11 +138,13 @@ class RentalService:
             logger.warning(f"Payment clear failed for rental {order_id}: {error}")
 
         final_debt = self.debt_repo.get_debt_amount(order_id)
-        
+
         final_total_cost = rental.total_amount + final_debt
         final_deposit_refund = max(0, rental.deposit - final_total_cost)
 
-        logger.info(f"Rental {order_id} stopped successfully. Deposit: {rental.deposit}, Total cost: {final_total_cost}, Refund: {final_deposit_refund}")
+        logger.info(
+            f"Rental {order_id} stopped successfully. Deposit: {rental.deposit}, Total cost: {final_total_cost}, Refund: {final_deposit_refund}"
+        )
         return RentalStatusResponse(
             order_id=rental.id,
             status=rental.status,

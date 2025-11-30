@@ -1,6 +1,6 @@
-from pydantic import BaseModel
-
 from dataclasses import dataclass
+
+from pydantic import BaseModel
 
 
 @dataclass
@@ -17,6 +17,8 @@ class BillingTickResult:
 
 
 dataclass
+
+
 class AllRentalsBillingResult(BaseModel):
     active_rentals: int
     total_charged: int

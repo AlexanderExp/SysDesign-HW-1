@@ -12,7 +12,6 @@ def test_create_quote_persisted(
     test_station_id,
     cleanup_db,  # noqa: ARG001
 ):
-    """Оффер создаётся через API и сохраняется в БД."""
     resp = api_client.post(
         "/api/v1/rentals/quote",
         json={"station_id": test_station_id, "user_id": test_user_id},
@@ -44,7 +43,6 @@ def test_quote_expiration_cleanup(
     test_station_id,
     cleanup_db,  # noqa: ARG001
 ):
-    """Test that expired quotes are properly handled."""
     # Create quote
     q_resp = api_client.post(
         "/api/v1/rentals/quote",

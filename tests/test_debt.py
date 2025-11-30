@@ -1,35 +1,7 @@
-import os
 import uuid
 
 import pytest
 from sqlalchemy import text
-
-
-@pytest.fixture
-def stop_external_service(external_base):
-    """Stop external service temporarily."""
-    # Note: This requires docker-compose control
-    # In real test, you'd use docker SDK or compose commands
-    # For now, this is a placeholder showing the concept
-    import subprocess
-
-    try:
-        subprocess.run(
-            ["docker", "compose", "stop", "external-stubs"],
-            check=True,
-            capture_output=True,
-        )
-        yield
-    finally:
-        subprocess.run(
-            ["docker", "compose", "start", "external-stubs"],
-            check=True,
-            capture_output=True,
-        )
-        # Wait for service to be ready
-        import time
-
-        time.sleep(3)
 
 
 @pytest.mark.integration
@@ -43,7 +15,6 @@ def test_debt_retry_with_backoff(
     wait_for_billing,
     cleanup_db,  # noqa: ARG001
 ):
-    """Test that debt retry uses exponential backoff."""
     # This test checks that attempts increase over time
     # Create a rental and manually set debt
     quote_response = api_client.post(
@@ -92,7 +63,6 @@ def test_debt_collection_success(
     wait_for_billing,
     cleanup_db,  # noqa: ARG001
 ):
-    """Test that debt is collected when payment succeeds."""
     # Create rental with some charges
     quote_response = api_client.post(
         "/api/v1/rentals/quote",
@@ -112,7 +82,7 @@ def test_debt_collection_success(
         text("""
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts, last_attempt_at)
             VALUES (:id, 50, NOW(), 0, NOW() - INTERVAL '2 hours')
-            ON CONFLICT (rental_id) DO UPDATE 
+            ON CONFLICT (rental_id) DO UPDATE
             SET amount_total = debts.amount_total + 50
         """),
         {"id": order_id},
@@ -145,12 +115,11 @@ def test_debt_collection_success(
 @pytest.mark.integration
 def test_debt_visible_in_status(
     api_client,
-    db_session,
     billing_db_session,
     test_user_id,
     test_station_id,
-    cleanup_db,):
-    """Test that debt is visible in rental status."""
+    cleanup_db,  # noqa: ARG001
+):
     # Create rental
     quote_response = api_client.post(
         "/api/v1/rentals/quote",

@@ -1,26 +1,26 @@
-from contextlib import contextmanager
 import time
+from contextlib import contextmanager
 
 from loguru import logger
 
-from billing_worker.config.settings import Settings
+from billing_worker.clients.external import ExternalClient
 from billing_worker.config.logging import setup_logging
+from billing_worker.config.settings import Settings
 from billing_worker.db.database import (
-    get_rental_sessionmaker,
     get_billing_sessionmaker,
+    get_rental_sessionmaker,
 )
-from billing_worker.db.repositories.rental import RentalRepository
-from billing_worker.db.repositories.payment import PaymentRepository
 from billing_worker.db.repositories.debt import DebtRepository
+from billing_worker.db.repositories.payment import PaymentRepository
+from billing_worker.db.repositories.rental import RentalRepository
 from billing_worker.monitoring.metrics import (
     MetricsCollector,
     init_app_info,
     start_metrics_server,
 )
 from billing_worker.services.billing import BillingService
-from billing_worker.services.payment import PaymentService
 from billing_worker.services.debt import DebtService
-from billing_worker.clients.external import ExternalClient
+from billing_worker.services.payment import PaymentService
 
 
 @contextmanager

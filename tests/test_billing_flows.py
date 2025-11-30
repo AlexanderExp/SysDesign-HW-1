@@ -1,11 +1,9 @@
 import os
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
-
 
 # ---------- Вспомогательные штуки ----------
 
@@ -17,7 +15,6 @@ class BillingConfig:
 
 
 def _get_billing_config() -> BillingConfig:
-    """Читаем конфиг биллинга из env с адекватными дефолтами."""
     tick_sec = int(os.getenv("BILLING_TICK_SEC", "5"))
     r_buyout = int(os.getenv("R_BUYOUT", "50"))
 
@@ -29,11 +26,6 @@ def _get_billing_config() -> BillingConfig:
 
 
 def _create_rental_with_quote(api_client, test_user_id: str, test_station_id: str):
-    """
-    Создаёт quote + стартует аренду, возвращает:
-    - order_id
-    - данные оффера (price_per_hour, free_period_min и т.п.).
-    """
     q_resp = api_client.post(
         "/api/v1/rentals/quote",
         json={"station_id": test_station_id, "user_id": test_user_id},
@@ -167,7 +159,7 @@ def test_periodic_billing_produces_successful_charges(
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db, # noqa: ARG001
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест периодического биллинга:
@@ -209,7 +201,7 @@ def test_buyout_paid_only_stops_new_charges(
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db, # noqa: ARG001
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест выкупа с оплаченной арендой (без долга):
@@ -227,7 +219,9 @@ def test_buyout_paid_only_stops_new_charges(
     - ожидание делаем через цикл с несколькими раундами.
     """
     cfg = _get_billing_config()
-    rental_id, quote = _create_rental_with_quote(api_client, test_user_id, test_station_id)
+    rental_id, quote = _create_rental_with_quote(
+        api_client, test_user_id, test_station_id
+    )
 
     # Считаем, сколько минут нужно, чтобы точно пересечь порог выкупа
     minutes_for_buyout = _minutes_needed_for_buyout(quote, cfg)
@@ -279,7 +273,7 @@ def test_buyout_with_existing_debt_collected_and_stops(
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db, # noqa: ARG001
+    cleanup_db,  # noqa: ARG001
 ):
     """
     Тест выкупа с существующим долгом:
@@ -294,7 +288,9 @@ def test_buyout_with_existing_debt_collected_and_stops(
     - ожидание статуса — через цикл с несколькими раундами.
     """
     cfg = _get_billing_config()
-    rental_id, quote = _create_rental_with_quote(api_client, test_user_id, test_station_id)
+    rental_id, quote = _create_rental_with_quote(
+        api_client, test_user_id, test_station_id
+    )
 
     wait_seconds = max(cfg.tick_sec * 2, 5)
 

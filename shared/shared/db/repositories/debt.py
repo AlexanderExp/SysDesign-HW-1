@@ -24,9 +24,7 @@ class DebtRepository:
     # --- Добавление / изменение долга ---
 
     def add_debt(self, rental_id: str, amount: int) -> None:
-        """
-        Увеличивает долг по аренде (или создаёт его, если записи ещё нет).
-        """
+        """Увеличивает долг по аренде (или создаёт его, если записи ещё нет)."""
         now = datetime.now(timezone.utc)
         debt = self.get_by_rental_id(rental_id)
 
@@ -55,8 +53,7 @@ class DebtRepository:
             )
 
     def reduce_debt(self, rental_id: str, amount: int) -> bool:
-        """
-        Уменьшает долг на amount.
+        """Уменьшает долг на amount.
 
         Возвращает True, если получилось уменьшить (и долг был >= amount),
         иначе False (в этом случае ничего не меняем).
@@ -88,8 +85,8 @@ class DebtRepository:
         return True
 
     def increment_attempts(self, rental_id: str) -> None:
-        """
-        Увеличивает счётчик попыток взыскания долга
+        """Увеличивает счётчик попыток взыскания долга
+
         и обновляет last_attempt_at.
         """
         debt = self.get_by_rental_id(rental_id)
@@ -113,8 +110,7 @@ class DebtRepository:
     # --- Логика ретраев (то, что ломалось в тесте) ---
 
     def should_retry_debt(self, rental_id: str, backoff_seconds: int) -> bool:
-        """
-        Логика под тесты:
+        """Логика под тесты:
 
         - нет долга или долг 0 → не ретраим (False)
         - last_attempt_at is None → ещё ни разу не пытались → True
@@ -154,8 +150,8 @@ class DebtRepository:
     # --- Привязка долга к конкретной операции/моменту ---
 
     def attach_debt(self, rental_id: str, amount: int, now: datetime) -> None:
-        """
-        Используется, когда надо «подвесить» долг за конкретную операцию.
+        """Используется, когда надо "подвесить" долг за конкретную операцию.
+
         (Например, биллинг не смог списать оплату за тик.)
         """
         debt = self.get_by_rental_id(rental_id)
@@ -189,9 +185,7 @@ class DebtRepository:
     # --- Агрегаты для метрик ---
 
     def get_total_debt_amount(self) -> int:
-        """
-        Суммарный долг по всем арендам — нужно для gauge-метрики биллинга.
-        """
+        """Суммарный долг по всем арендам — нужно для gauge-метрики биллинга."""
         total = self.session.query(
             func.coalesce(func.sum(Debt.amount_total), 0)
         ).scalar()
