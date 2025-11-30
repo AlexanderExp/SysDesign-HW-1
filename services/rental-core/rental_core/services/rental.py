@@ -47,7 +47,6 @@ class RentalService:
 
         quote = self.quote_service.get_and_validate_quote(request.quote_id)
 
-
         now = datetime.now(timezone.utc)
         rental = Rental(
             id=uuid4(),
@@ -62,10 +61,12 @@ class RentalService:
         )
 
         self.rental_repo.create_rental(rental)
-        
+
         eject_response = self.external_client.eject_powerbank(quote.station_id)
         if not eject_response.success:
-            logger.error(f"Eject failed for station {quote.station_id}, rolling back rental")
+            logger.error(
+                f"Eject failed for station {quote.station_id}, rolling back rental"
+            )
             rental.status = "FAILED"
             self.rental_repo.update_rental(rental)
             raise EjectFailedException()
@@ -99,7 +100,9 @@ class RentalService:
         logger.info(f"Rental started: {rental.id}")
         return RentalStatusResponse(**response_data)
 
-    def stop_rental(self, order_id: str, request: StopRentalRequest) -> RentalStatusResponse:
+    def stop_rental(
+        self, order_id: str, request: StopRentalRequest
+    ) -> RentalStatusResponse:
         logger.info(f"Stopping rental {order_id} at station {request.station_id}")
 
         rental = self.rental_repo.get_rental(order_id)

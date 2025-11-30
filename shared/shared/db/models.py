@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -18,7 +18,9 @@ class Rental(Base):
     price_per_hour: Mapped[int] = mapped_column(Integer)
     free_period_min: Mapped[int] = mapped_column(Integer)
     deposit: Mapped[int] = mapped_column(Integer)
-    status: Mapped[str] = mapped_column(String(16))  # ACTIVE / FINISHED / BUYOUT / FAILED
+    status: Mapped[str] = mapped_column(
+        String(16)
+    )  # ACTIVE / FINISHED / BUYOUT / FAILED
     total_amount: Mapped[int] = mapped_column(Integer, default=0)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[Optional[datetime]] = mapped_column(

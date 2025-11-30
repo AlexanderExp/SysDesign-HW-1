@@ -33,10 +33,10 @@ async def lifespan(app: FastAPI):
     logger.info("Starting rental-core service")
 
     settings = Settings()
-    
+
     # Инициализируем БД один раз при старте
     init_database(settings)
-    
+
     app.state.external_client = ExternalClient(settings)
 
     yield

@@ -62,7 +62,7 @@ class ExternalClient:
         self._timeout = settings.http_timeout_sec
         self._external_base = settings.external_base
         self._tariff_cache = TTLCache(maxsize=1024, ttl=settings.tariff_ttl_sec)
-        
+
         self._cb_config = CircuitBreakerConfig(settings)
         self._station_breaker = self._cb_config.get_station_breaker()
         self._payment_breaker = self._cb_config.get_payment_breaker()
@@ -116,7 +116,7 @@ class ExternalClient:
                 location=data["location"],
                 slots=slots,
             )
-        
+
         return _get_station_data()
 
     def get_tariff(self, zone_id: str) -> Tariff:
@@ -131,7 +131,7 @@ class ExternalClient:
                     free_period_min=int(data["free_period_min"]),
                     default_deposit=int(data["default_deposit"]),
                 )
-            
+
             return _get_tariff_data()
 
         return _get_tariff_cached(zone_id)
@@ -147,7 +147,7 @@ class ExternalClient:
             )
             setattr(profile, "_from_fallback", False)
             return profile
-        
+
         try:
             return _get_user_profile()
         except Exception:
@@ -163,8 +163,10 @@ class ExternalClient:
         @self._station_breaker
         def _eject_powerbank():
             data = self._get("/eject-powerbank", {"station_id": station_id})
-            return EjectResponse(success=data["success"], powerbank_id=data["powerbank_id"])
-        
+            return EjectResponse(
+                success=data["success"], powerbank_id=data["powerbank_id"]
+            )
+
         return _eject_powerbank()
 
     def hold_money_for_order(
@@ -180,7 +182,7 @@ class ExternalClient:
                 f"Successfully held {amount} for user {user_id}, order {order_id}"
             )
             return True, None
-        
+
         try:
             return _hold_money()
         except Exception as e:
@@ -189,7 +191,7 @@ class ExternalClient:
                 f"Failed to hold {amount} for user {user_id}, order {order_id}: {error_msg}"
             )
             return False, error_msg
-    
+
     def get_circuit_breaker_stats(self):
         return self._cb_config.get_breaker_stats()
 
@@ -206,7 +208,7 @@ class ExternalClient:
                 f"Successfully charged {amount} for user {user_id}, order {order_id}"
             )
             return True, None
-        
+
         try:
             return _clear_money()
         except Exception as e:

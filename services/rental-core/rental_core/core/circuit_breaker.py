@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any, Dict
 
 import pybreaker
 from loguru import logger
@@ -14,6 +14,7 @@ class LoggingCircuitBreakerListener(pybreaker.CircuitBreakerListener):
             f"Circuit Breaker '{cb.name}' state changed: {old_state} -> {new_state}. "
             f"Failures: {cb.fail_counter}/{cb.fail_max}"
         )
+
     # методы before_call / success / failure можно не переопределять,
     # если они не нужны – базовый класс оставит их no-op
 

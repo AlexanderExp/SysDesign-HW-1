@@ -1,4 +1,4 @@
-.PHONY: help test test-fast test-integration test-billing test-coverage test-watch setup-test clean-test
+.PHONY: help test test-fast test-integration test-billing test-coverage test-watch setup-test clean-test lint format
 
 help:
 	@echo "Available commands:"
@@ -10,6 +10,8 @@ help:
 	@echo "  make test-watch        - Run tests in watch mode"
 	@echo "  make setup-test        - Install test dependencies"
 	@echo "  make clean-test        - Clean test artifacts"
+	@echo "  make lint              - Run linter checks"
+	@echo "  make format            - Format code"
 
 setup-test:
 	uv sync
@@ -37,6 +39,15 @@ clean-test:
 	rm -rf htmlcov
 	rm -rf .coverage
 	find . -type d -name __pycache__ -exec rm -rf {} +
+
+# Linting and formatting
+lint:
+	uv run ruff check .
+	uv run ruff format --check .
+
+format:
+	uv run ruff format .
+	uv run ruff check --fix .
 
 # Docker commands
 up:
