@@ -29,34 +29,39 @@ graph TB
     end
     
     subgraph "Хранилище"
-        PG[(PostgreSQL<br/>Master)]
-        PGR1[(Replica 1)]
-        PGR2[(Replica 2)]
-        RD[(Redis<br/>Cluster)]
+        PGR[(db-rental<br/>:5433)]
+        PGB[(db-billing<br/>:5434)]
+        PGRR[(rental replica)]
+        PGBR[(billing replica)]
+        RD[(Redis<br/>:6379)]
     end
     
     LB --> RC1
     LB --> RC2
     LB --> RC3
     
-    RC1 --> PG
-    RC2 --> PG
-    RC3 --> PG
+    RC1 --> PGR
+    RC2 --> PGR
+    RC3 --> PGR
     
-    RC1 -.->|Read| PGR1
-    RC2 -.->|Read| PGR2
-    RC3 -.->|Read| PGR1
+    RC1 -.->|Read| PGRR
+    RC2 -.->|Read| PGRR
+    RC3 -.->|Read| PGRR
     
     RC1 --> RD
     RC2 --> RD
     RC3 --> RD
     
-    BW1 --> PG
-    BW2 --> PG
-    BW3 --> PG
+    BW1 --> PGB
+    BW2 --> PGB
+    BW3 --> PGB
     
-    PG -.->|Репликация| PGR1
-    PG -.->|Репликация| PGR2
+    BW1 -.->|Read| PGBR
+    BW2 -.->|Read| PGBR
+    BW3 -.->|Read| PGBR
+    
+    PGR -.->|Репликация| PGRR
+    PGB -.->|Репликация| PGBR
     
     style RC1 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
     style RC2 fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
@@ -64,9 +69,10 @@ graph TB
     style BW1 fill:#48bb78,stroke:#333,stroke-width:2px,color:#fff
     style BW2 fill:#48bb78,stroke:#333,stroke-width:2px,color:#fff
     style BW3 fill:#48bb78,stroke:#333,stroke-width:2px,color:#fff
-    style PG fill:#336791,stroke:#333,stroke-width:2px,color:#fff
-    style PGR1 fill:#5499c7,stroke:#333,stroke-width:2px,color:#fff
-    style PGR2 fill:#5499c7,stroke:#333,stroke-width:2px,color:#fff
+    style PGR fill:#336791,stroke:#333,stroke-width:2px,color:#fff
+    style PGB fill:#336791,stroke:#333,stroke-width:2px,color:#fff
+    style PGRR fill:#5499c7,stroke:#333,stroke-width:2px,color:#fff
+    style PGBR fill:#5499c7,stroke:#333,stroke-width:2px,color:#fff
     style RD fill:#dc382d,stroke:#333,stroke-width:2px,color:#fff
 ```
 
@@ -211,34 +217,48 @@ while True:
 
 ---
 
-### 3. PostgreSQL (база данных)
+### 3. PostgreSQL (две отдельные БД)
+
+**Почему две БД:**
+- `db-rental` (:5433) - для rental-core (офферы, аренды, идемпотентность)
+- `db-billing` (:5434) - для billing-worker (платежи, долги)
+- Изоляция: падение одной БД не влияет на другую
+- Независимое масштабирование под разную нагрузку
 
 **Вертикальное масштабирование (проще всего):**
 - Купить сервер помощнее (больше CPU/RAM)
 - Поставить SSD вместо HDD (в разы быстрее)
 - Подкрутить настройки (shared_buffers, work_mem)
 
-**Горизонтальное масштабирование (если вертикальное не помогло):**
+**Горизонтальное масштабирование:**
 ```
-Master (пишем) → Replicas (читаем)
+db-rental Master → rental Replica (для чтения статусов)
+db-billing Master → billing Replica (для аналитики)
 ```
 
 **Как разделить нагрузку:**
 ```python
-# Запись всегда в master
-rental_repo.create_rental(rental)  # → Master
+# rental-core пишет в db-rental
+rental_repo.create_rental(rental)  # → db-rental Master
 
-# Чтение можно из реплики
-rental_repo.get_rental_status(order_id)  # → Replica
+# Чтение статусов из реплики
+rental_repo.get_rental_status(order_id)  # → db-rental Replica
+
+# billing-worker работает с db-billing
+billing_service.process_charges()  # → db-billing Master
 ```
 
-**Обязательные индексы (без них будет медленно):**
+**Обязательные индексы:**
 ```sql
+-- db-rental
 CREATE INDEX idx_rentals_status ON rentals(status);
 CREATE INDEX idx_rentals_user_id ON rentals(user_id);
+CREATE INDEX idx_quotes_expires_at ON quotes(expires_at);
+
+-- db-billing
 CREATE INDEX idx_payment_attempts_rental_id ON payment_attempts(rental_id);
+CREATE INDEX idx_debts_last_attempt ON debts(last_attempt_at);
 ```
-Без индексов БД будет сканировать всю таблицу → тормоза.
 
 ---
 
@@ -272,14 +292,21 @@ Redis Cluster (3 мастера + 3 реплики)
 - 1 инстанс × 1 CPU × 2 GB RAM
 - Потянет до 1000 активных аренд
 
-**PostgreSQL:**
-- 1 master × 4 CPU × 16 GB RAM (для записи)
-- 1 replica × 2 CPU × 8 GB RAM (для чтения, опционально)
+**db-rental (PostgreSQL):**
+- 1 master × 2 CPU × 8 GB RAM (для rental-core)
+- 1 replica × 1 CPU × 4 GB RAM (опционально, для чтения)
+
+**db-billing (PostgreSQL):**
+- 1 master × 2 CPU × 8 GB RAM (для billing-worker)
+- 1 replica × 1 CPU × 4 GB RAM (опционально, для аналитики)
 
 **Redis:**
 - 1 инстанс × 1 CPU × 2 GB RAM (хватит с головой)
 
-**Итого:** ~10 CPU, ~32 GB RAM (недорого)
+**external-stubs:**
+- 1 инстанс × 1 CPU × 1 GB RAM (заглушка)
+
+**Итого:** ~13 CPU, ~37 GB RAM (без реплик: ~9 CPU, ~25 GB RAM)
 
 ---
 
@@ -293,14 +320,18 @@ Redis Cluster (3 мастера + 3 реплики)
 - 3 инстанса × 2 CPU × 4 GB RAM
 - Делим аренды между ними (шардирование)
 
-**PostgreSQL:**
-- 1 master × 8 CPU × 32 GB RAM (помощнее)
-- 2 replicas × 4 CPU × 16 GB RAM (для чтения)
+**db-rental:**
+- 1 master × 4 CPU × 16 GB RAM
+- 2 replicas × 2 CPU × 8 GB RAM (для read)
+
+**db-billing:**
+- 1 master × 4 CPU × 16 GB RAM
+- 1 replica × 2 CPU × 8 GB RAM
 
 **Redis:**
 - 3 ноды в кластере × 2 CPU × 4 GB RAM
 
-**Итого:** ~40 CPU, ~120 GB RAM (всё еще недорого)
+**Итого:** ~50 CPU, ~140 GB RAM
 
 ---
 
@@ -318,22 +349,52 @@ Redis Cluster (3 мастера + 3 реплики)
 
 ## Что мониторить
 
-**Ключевые метрики:**
-- RPS (сколько запросов в секунду)
-- Latency (p50, p95, p99 - время ответа)
-- Error rate (процент ошибок 4xx/5xx)
-- DB connections (сколько используется)
-- Active rentals (сколько активных аренд)
-- Debt collection rate (процент успешного списания долгов)
+### Стек мониторинга: Prometheus + Grafana
 
-**Когда бить тревогу:**
-- Latency p95 > 1s (слишком медленно)
-- Error rate > 1% (много ошибок)
-- DB connections > 80% (скоро кончатся)
-- Active rentals > 5000 (пора масштабировать billing-worker)
+**Prometheus (:9090)** собирает метрики каждые 10-15 секунд:
+- rental-core:8000/metrics
+- billing-worker:8001/metrics
 
-**Инструменты (на выбор):**
-- Prometheus + Grafana (метрики и графики)
-- ELK Stack (логи и поиск по ним)
-- Jaeger / OpenTelemetry (трейсинг запросов)
+**Grafana (:3000)** визуализирует метрики в дашбордах:
+- Rental System Overview - общий обзор
+- HTTP Metrics - API метрики
+- Billing Metrics - метрики биллинга
+
+### Ключевые метрики:
+
+**HTTP метрики (rental-core):**
+- `http_requests_total` - RPS (запросов в секунду)
+- `http_request_duration_seconds` - Latency (p50, p95, p99)
+- `http_requests_errors_total` - Error rate (4xx, 5xx)
+
+**Бизнес метрики:**
+- `active_rentals_total` - Активные аренды
+- `billing_charges_total` - Начисления
+- `debt_collection_success_rate` - Успешность списания долгов
+- `quote_creation_total` - Созданные офферы
+
+**Инфраструктура:**
+- DB connections pool usage
+- Redis cache hit rate
+- External API response time
+
+### Алерты (когда бить тревогу):
+
+**Производительность:**
+- Latency p95 > 1s → Добавить инстансы rental-core
+- Error rate > 1% → Проверить логи и внешние сервисы
+- RPS > 50 на инстанс → Масштабировать
+
+**Ресурсы:**
+- DB connections > 80% → Увеличить pool или добавить реплики
+- Active rentals > 5000 → Масштабировать billing-worker
+- Redis memory > 80% → Увеличить память или добавить ноды
+
+**Бизнес:**
+- Debt collection rate < 50% → Проблемы с платежами
+- Quote to rental conversion < 30% → UX проблемы
+
+### Дополнительные инструменты (опционально):
+- ELK Stack - для анализа логов
+- Jaeger / OpenTelemetry - для трейсинга запросов
 

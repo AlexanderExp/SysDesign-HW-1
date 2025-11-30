@@ -199,9 +199,9 @@ def hold_money_with_fallback(self, user_id: str, order_id: str, amount: int):
 ```
 
 **Если платежи упали:**
-- ✅ Депозит записываем как долг
+- ✅ Депозит записываем как долг в `db-billing`
 - ✅ Аренда начинается нормально
-- ✅ billing-worker потом попробует списать долг
+- ✅ billing-worker потом попробует списать долг из `db-billing`
 - Пользователь доволен, деньги не потеряем
 
 ---
@@ -244,21 +244,21 @@ session.mount("https://", adapter)
 sequenceDiagram
     participant Client
     participant API as rental-core
-    participant DB as PostgreSQL
+    participant PGR as db-rental
     
-    Note over Client,DB: Первый запрос
+    Note over Client,PGR: Первый запрос
     Client->>API: POST /start<br/>Idempotency-Key: abc-123
-    API->>DB: SELECT idempotency_keys
-    DB-->>API: Не найдено
+    API->>PGR: SELECT idempotency_keys
+    PGR-->>API: Не найдено
     API->>API: Обработка запроса
-    API->>DB: INSERT rental
-    API->>DB: INSERT idempotency_key<br/>(response_json)
+    API->>PGR: INSERT rental
+    API->>PGR: INSERT idempotency_key<br/>(response_json)
     API-->>Client: 200 {rental_id: "xyz"}
     
-    Note over Client,DB: Повторный запрос
+    Note over Client,PGR: Повторный запрос
     Client->>API: POST /start<br/>Idempotency-Key: abc-123
-    API->>DB: SELECT idempotency_keys
-    DB-->>API: Найдено
+    API->>PGR: SELECT idempotency_keys
+    PGR-->>API: Найдено
     API-->>Client: 200 {rental_id: "xyz"}<br/>(кешированный ответ)
     
     Note over API: Дубликат предотвращен

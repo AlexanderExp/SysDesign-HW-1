@@ -41,9 +41,10 @@
 
 ### Архитектура
 - 2 микросервиса: rental-core + billing-worker
-- PostgreSQL для персистентности
+- 2 PostgreSQL БД: db-rental (:5433) + db-billing (:5434)
 - Redis для кеширования
 - external-stubs для имитации внешних систем
+- Prometheus (:9090) + Grafana (:3000) для мониторинга
 
 ### Надежность
 - Fallback для некритичных источников

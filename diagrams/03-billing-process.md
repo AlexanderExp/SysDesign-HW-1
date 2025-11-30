@@ -5,52 +5,52 @@
 ```mermaid
 sequenceDiagram
     participant BW as billing-worker
-    participant PG as PostgreSQL
+    participant PGB as db-billing
     participant ES as external-stubs
     
     Note over BW: Тик каждые 30 сек
     
     loop Обработка активных аренд
-        BW->>PG: SELECT rentals (ACTIVE)
-        PG-->>BW: active_rentals[]
+        BW->>PGB: SELECT rentals (ACTIVE)
+        PGB-->>BW: active_rentals[]
         
         BW->>BW: Расчет due_amount<br/>(price × billable_sec / 3600)
         
-        BW->>PG: SELECT SUM(payment_attempts)
-        PG-->>BW: paid_amount
+        BW->>PGB: SELECT SUM(payment_attempts)
+        PGB-->>BW: paid_amount
         
-        BW->>PG: SELECT debts
-        PG-->>BW: debt_amount
+        BW->>PGB: SELECT debts
+        PGB-->>BW: debt_amount
         
         BW->>BW: to_charge = due - paid - debt
         
         alt Достигнут R_BUYOUT
             BW->>BW: paid + debt >= R_BUYOUT?
-            BW->>PG: UPDATE rental (BUYOUT)
-            Note over BW,PG: Автовыкуп
+            BW->>PGB: UPDATE rental (BUYOUT)
+            Note over BW,PGB: Автовыкуп
         else Новое начисление (to_charge > 0)
             BW->>ES: POST /clear-money {to_charge}
             
             alt Списание успешно
                 ES-->>BW: success
-                BW->>PG: INSERT payment_attempt (success)
-                BW->>PG: UPDATE rental.total_amount
-                Note over BW,PG: Оплачено
+                BW->>PGB: INSERT payment_attempt (success)
+                BW->>PGB: UPDATE rental.total_amount
+                Note over BW,PGB: Оплачено
             else Недостаточно средств
                 ES-->>BW: 400 error
-                BW->>PG: INSERT payment_attempt (fail)
-                BW->>PG: UPDATE debt (+to_charge)
-                Note over BW,PG: Долг увеличен
+                BW->>PGB: INSERT payment_attempt (fail)
+                BW->>PGB: UPDATE debt (+to_charge)
+                Note over BW,PGB: Долг увеличен
             end
             
             BW->>BW: Проверка R_BUYOUT
             alt Порог достигнут
-                BW->>PG: UPDATE rental (BUYOUT)
+                BW->>PGB: UPDATE rental (BUYOUT)
             end
         else Нет начислений (to_charge <= 0)
             alt Есть долг
-                BW->>PG: SELECT debt
-                PG-->>BW: amount, attempts, last_attempt
+                BW->>PGB: SELECT debt
+                PGB-->>BW: amount, attempts, last_attempt
                 
                 BW->>BW: Расчет backoff<br/>(60 × 2^attempts, max 3600s)
                 
@@ -62,13 +62,13 @@ sequenceDiagram
                     
                     alt Погашение успешно
                         ES-->>BW: success
-                        BW->>PG: UPDATE debt (-charge, attempts=0)
-                        BW->>PG: UPDATE rental.total_amount
-                        Note over BW,PG: Долг погашен
+                        BW->>PGB: UPDATE debt (-charge, attempts=0)
+                        BW->>PGB: UPDATE rental.total_amount
+                        Note over BW,PGB: Долг погашен
                     else Погашение неуспешно
                         ES-->>BW: 400 error
-                        BW->>PG: UPDATE debt (attempts+1)
-                        Note over BW,PG: Счетчик попыток++
+                        BW->>PGB: UPDATE debt (attempts+1)
+                        Note over BW,PGB: Счетчик попыток++
                     end
                 else Backoff период
                     Note over BW: Пропуск попытки
