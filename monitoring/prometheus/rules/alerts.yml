@@ -1,0 +1,83 @@
+groups:
+  - name: rental_system_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second for {{ $labels.job }}"
+
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s for {{ $labels.job }}"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.job }} service is down"
+
+      - alert: HighDebtAmount
+        expr: debt_amount_current > 1000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High total debt amount"
+          description: "Total debt amount is {{ $value }} kopecks"
+
+      - alert: HighPaymentFailureRate
+        expr: rate(payment_attempts_total{status="failure"}[5m]) / rate(payment_attempts_total[5m]) > 0.2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High payment failure rate"
+          description: "Payment failure rate is {{ $value | humanizePercentage }}"
+
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker is open"
+          description: "Circuit breaker for {{ $labels.service }} is open"
+
+      - alert: BillingWorkerStuck
+        expr: increase(billing_cycles_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Billing worker appears to be stuck"
+          description: "No billing cycles processed in the last 10 minutes"
+
+      - alert: HighDatabaseConnections
+        expr: database_connections_active > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of database connections"
+          description: "{{ $value }} active database connections"
+
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile query time is {{ $value }}s"
