@@ -10,50 +10,50 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
       with:
         version: "latest"
-        
+
     - name: Set up Python
       run: uv python install 3.11
-      
+
     - name: Install dependencies
       run: uv sync --dev
-      
+
     - name: Run linter
       run: make lint
 
   test:
     name: Test
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
     - name: Install uv
       uses: astral-sh/setup-uv@v3
       with:
         version: "latest"
-        
+
     - name: Set up Python
       run: uv python install 3.11
-      
+
     - name: Install dependencies
       run: uv sync --dev
-      
-    - name: Create .env file
-      run: cp .env.example .env
-      
+
+    - name: Create .env file for CI
+      run: cp .github/workflows/.env.ci .env
+
     - name: Start services with Docker Compose
       run: docker compose up -d
-      
+
     - name: Wait for services to be ready
       run: |
         echo "Waiting for rental database to be healthy..."
@@ -61,22 +61,23 @@ jobs:
 
         echo "Waiting for billing database to be healthy..."
         timeout 60 bash -c 'until docker compose ps db-billing | grep -q "healthy"; do sleep 2; done'
-        
+
         echo "Waiting for external-stubs to be healthy..."
         timeout 60 bash -c 'until docker compose ps external-stubs | grep -q "healthy"; do sleep 2; done'
-        
+
         echo "Waiting for rental-core to be up..."
         timeout 60 bash -c 'until docker compose ps rental-core | grep -q "Up"; do sleep 2; done'
-        
+
         echo "Waiting for billing-worker to be up..."
         timeout 60 bash -c 'until docker compose ps billing-worker | grep -q "Up"; do sleep 2; done'
-        
+
         echo "All services are ready!"
         docker compose ps
-      
+
     - name: Run tests
       run: make test
-      
+
     - name: Stop services
       if: always()
       run: docker compose down
+
