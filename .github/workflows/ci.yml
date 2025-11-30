@@ -77,11 +77,23 @@ jobs:
         
         echo "All services are ready!"
         docker compose ps
+        
+        echo "Checking service logs for errors..."
+        echo "=== rental-core logs ==="
+        docker compose logs rental-core --tail=20
+        echo "=== external-stubs logs ==="
+        docker compose logs external-stubs --tail=10
+        
         echo "Service endpoints:"
         curl -s http://localhost:3629/configs | head -3 || echo "external-stubs not responding"
         curl -s http://localhost:8000/health || echo "rental-core not responding"
 
     - name: Run tests
+      env:
+        DATABASE_URL: postgresql+psycopg2://app:app@localhost:5433/rental
+        BILLING_DATABASE_URL: postgresql+psycopg2://app:app@localhost:5434/billing
+        EXTERNAL_BASE: http://localhost:3629
+        RENTAL_CORE_BASE: http://localhost:8000
       run: make test
 
     - name: Stop services
