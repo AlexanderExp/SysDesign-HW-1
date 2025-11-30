@@ -8,5 +8,8 @@ def get_sessionmaker(settings: Settings):
     return shared_get_sessionmaker(settings.database_url)
 
 
+def get_billing_sessionmaker(settings: Settings):
+    return shared_get_sessionmaker(settings.billing_database_url)
+
 def get_engine(settings: Settings):
     return shared_get_engine(settings.database_url)

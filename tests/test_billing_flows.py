@@ -54,18 +54,18 @@ def _create_rental_with_quote(api_client, test_user_id: str, test_station_id: st
 def _rewind_started_at(db_session, rental_id: str, minutes: int) -> None:
     db_session.execute(
         text(
-            "UPDATE rentals "
-            "SET started_at = NOW() - INTERVAL ':minutes minutes' "
-            "WHERE id = :id"
-        ).bindparams(minutes=minutes),
+            f"UPDATE rentals "
+            f"SET started_at = NOW() - INTERVAL '{minutes} minutes' "
+            f"WHERE id = :id"
+        ),
         {"id": rental_id},
     )
     db_session.commit()
 
 
-def _get_payment_stats(db_session, rental_id: str):
+def _get_payment_stats(billing_db_session, rental_id: str):
     row = (
-        db_session.execute(
+        billing_db_session.execute(
             text(
                 """
                 SELECT
@@ -90,8 +90,8 @@ def _get_payment_stats(db_session, rental_id: str):
     }
 
 
-def _get_debt_amount(db_session, rental_id: str) -> int:
-    row = db_session.execute(
+def _get_debt_amount(billing_db_session, rental_id: str) -> int:
+    row = billing_db_session.execute(
         text("SELECT amount_total FROM debts WHERE rental_id = :id"),
         {"id": rental_id},
     ).fetchone()
@@ -163,10 +163,11 @@ def _wait_until_status_in(
 def test_periodic_billing_produces_successful_charges(
     api_client,
     db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db,  # noqa: ARG001
+    cleanup_db, # noqa: ARG001
 ):
     """
     Тест периодического биллинга:
@@ -190,8 +191,8 @@ def test_periodic_billing_produces_successful_charges(
         _rewind_started_at(db_session, rental_id, minutes)
         wait_for_billing(wait_seconds)
 
-    stats = _get_payment_stats(db_session, rental_id)
-    debt = _get_debt_amount(db_session, rental_id)
+    stats = _get_payment_stats(billing_db_session, rental_id)
+    debt = _get_debt_amount(billing_db_session, rental_id)
 
     assert stats["attempts_ok"] >= 1, "Должна быть хотя бы одна успешная попытка"
     assert stats["amount_sum"] > 0, "Сумма успешных списаний должна быть > 0"
@@ -204,10 +205,11 @@ def test_periodic_billing_produces_successful_charges(
 def test_buyout_paid_only_stops_new_charges(
     api_client,
     db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db,  # noqa: ARG001
+    cleanup_db, # noqa: ARG001
 ):
     """
     Тест выкупа с оплаченной арендой (без долга):
@@ -241,8 +243,8 @@ def test_buyout_paid_only_stops_new_charges(
         max_rounds=10,
     )
 
-    stats_before = _get_payment_stats(db_session, rental_id)
-    debt_before = _get_debt_amount(db_session, rental_id)
+    stats_before = _get_payment_stats(billing_db_session, rental_id)
+    debt_before = _get_debt_amount(billing_db_session, rental_id)
 
     assert stats_before["amount_sum"] > 0
     assert debt_before == 0
@@ -258,8 +260,8 @@ def test_buyout_paid_only_stops_new_charges(
         max_rounds=3,
     )
 
-    stats_after = _get_payment_stats(db_session, rental_id)
-    debt_after = _get_debt_amount(db_session, rental_id)
+    stats_after = _get_payment_stats(billing_db_session, rental_id)
+    debt_after = _get_debt_amount(billing_db_session, rental_id)
 
     assert stats_after["attempts_total"] == stats_before["attempts_total"]
     assert stats_after["amount_sum"] == stats_before["amount_sum"]
@@ -273,10 +275,11 @@ def test_buyout_paid_only_stops_new_charges(
 def test_buyout_with_existing_debt_collected_and_stops(
     api_client,
     db_session,
+    billing_db_session,
     test_user_id,
     test_station_id,
     wait_for_billing,
-    cleanup_db,  # noqa: ARG001
+    cleanup_db, # noqa: ARG001
 ):
     """
     Тест выкупа с существующим долгом:
@@ -300,24 +303,25 @@ def test_buyout_with_existing_debt_collected_and_stops(
     _rewind_started_at(db_session, rental_id, minutes=quote["free_period_min"] + 30)
     wait_for_billing(wait_seconds * 2)
 
-    stats_initial = _get_payment_stats(db_session, rental_id)
+    stats_initial = _get_payment_stats(billing_db_session, rental_id)
 
     # Вручную добавляем долг: не меньше R_BUYOUT, чтобы buyout точно был достижим
     initial_debt_amount = max(cfg.r_buyout, 100)
-
-    db_session.execute(
-        text("""
+    billing_db_session.execute(
+        text(
+            """
             INSERT INTO debts (rental_id, amount_total, updated_at, attempts)
             VALUES (:id, :amount, NOW(), 0)
             ON CONFLICT (rental_id) DO UPDATE
               SET amount_total = debts.amount_total + EXCLUDED.amount_total,
                   updated_at = NOW()
-            """),
+            """
+        ),
         {"id": rental_id, "amount": initial_debt_amount},
     )
-    db_session.commit()
+    billing_db_session.commit()
 
-    debt_before = _get_debt_amount(db_session, rental_id)
+    debt_before = _get_debt_amount(billing_db_session, rental_id)
     assert debt_before >= initial_debt_amount
 
     # Даём биллингу время попытаться забрать долг и довести аренду до buyout
@@ -330,8 +334,8 @@ def test_buyout_with_existing_debt_collected_and_stops(
         max_rounds=10,
     )
 
-    stats_after = _get_payment_stats(db_session, rental_id)
-    debt_after = _get_debt_amount(db_session, rental_id)
+    stats_after = _get_payment_stats(billing_db_session, rental_id)
+    debt_after = _get_debt_amount(billing_db_session, rental_id)
 
     assert debt_after <= debt_before
     assert stats_after["amount_sum"] >= stats_initial["amount_sum"]
@@ -347,8 +351,8 @@ def test_buyout_with_existing_debt_collected_and_stops(
         max_rounds=3,
     )
 
-    stats_final = _get_payment_stats(db_session, rental_id)
-    debt_final = _get_debt_amount(db_session, rental_id)
+    stats_final = _get_payment_stats(billing_db_session, rental_id)
+    debt_final = _get_debt_amount(billing_db_session, rental_id)
 
     assert stats_final["attempts_total"] == stats_after["attempts_total"]
     assert stats_final["amount_sum"] == stats_after["amount_sum"]
