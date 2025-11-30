@@ -8,13 +8,19 @@ graph TB
         UI[Web UI<br/>Демо интерфейс]
     end
     
+    subgraph "Мониторинг"
+        PROM[Prometheus<br/>:9090<br/>Сбор метрик]
+        GRAF[Grafana<br/>:3000<br/>Дашборды]
+    end
+    
     subgraph "Основные микросервисы"
         RC[rental-core<br/>FastAPI<br/>:8000]
         BW[billing-worker<br/>Фоновый процесс]
     end
     
     subgraph "Хранилище данных"
-        PG[(PostgreSQL<br/>:5432)]
+        PGR[(db-rental<br/>PostgreSQL<br/>:5433)]
+        PGB[(db-billing<br/>PostgreSQL<br/>:5434)]
         RD[(Redis<br/>:6379)]
     end
     
@@ -23,19 +29,28 @@ graph TB
     end
     
     UI -->|HTTP/REST| RC
-    RC -->|SQL| PG
+    
+    PROM -->|scrape /metrics| RC
+    PROM -->|scrape /metrics| BW
+    GRAF -->|query| PROM
+    
+    RC -->|SQL| PGR
+    RC -->|SQL| PGB
     RC -->|Cache| RD
     RC -->|HTTP| ES
     
-    BW -->|SQL| PG
+    BW -->|SQL| PGB
     BW -->|HTTP| ES
     
     style RC fill:#667eea,stroke:#333,stroke-width:2px,color:#fff
     style BW fill:#48bb78,stroke:#333,stroke-width:2px,color:#fff
-    style PG fill:#336791,stroke:#333,stroke-width:2px,color:#fff
+    style PGR fill:#336791,stroke:#333,stroke-width:2px,color:#fff
+    style PGB fill:#336791,stroke:#333,stroke-width:2px,color:#fff
     style RD fill:#dc382d,stroke:#333,stroke-width:2px,color:#fff
     style ES fill:#f39c12,stroke:#333,stroke-width:2px,color:#fff
     style UI fill:#3498db,stroke:#333,stroke-width:2px,color:#fff
+    style PROM fill:#e74c3c,stroke:#333,stroke-width:2px,color:#fff
+    style GRAF fill:#f39c12,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ## Компоненты системы
@@ -59,18 +74,25 @@ graph TB
   - Управление долгами
   - Автовыкуп при достижении R_BUYOUT
 
-### PostgreSQL
-- **Роль:** Основное хранилище данных
+### db-rental (PostgreSQL :5433)
+- **Роль:** Хранилище данных rental-core
 - **Таблицы:**
   - rentals - активные аренды
   - quotes - офферы с TTL
-  - payment_attempts - аудит платежей
-  - debts - долги пользователей
   - idempotency_keys - защита от дублей
 
+### db-billing (PostgreSQL :5434)
+- **Роль:** Хранилище данных billing-worker
+- **Таблицы:**
+  - rentals - копия для биллинга
+  - payment_attempts - аудит платежей
+  - debts - долги пользователей
+
+**Разделение БД:** Каждый сервис имеет свою БД для изоляции и независимого масштабирования.
+
 ### Redis
-- **Роль:** Кеширование (опционально)
-- **Использование:** Кеш офферов, конфигов
+- **Роль:** Кеширование
+- **Использование:** Кеш офферов, конфигов, тарифов
 
 ### external-stubs
 - **Роль:** Имитация внешних систем
@@ -82,6 +104,31 @@ graph TB
   - /eject-powerbank - выдача банки
   - /hold-money-for-order - удержание депозита
   - /clear-money-for-order - списание средств
+
+### Prometheus (:9090)
+- **Роль:** Сбор и хранение метрик
+- **Источники метрик:**
+  - rental-core:8000/metrics - HTTP запросы, latency, errors
+  - billing-worker:8001/metrics - биллинг, долги, начисления
+- **Конфигурация:** `monitoring/prometheus/prometheus.yml`
+- **Scrape interval:** 10-15 секунд
+- **Ключевые метрики:**
+  - `http_requests_total` - количество запросов
+  - `http_request_duration_seconds` - latency
+  - `active_rentals_total` - активные аренды
+  - `billing_charges_total` - начисления
+  - `debt_collection_success_rate` - успешность списания долгов
+
+### Grafana (:3000)
+- **Роль:** Визуализация метрик и дашборды
+- **Источник данных:** Prometheus
+- **Дашборды:**
+  - Rental System Overview - общий обзор системы
+  - HTTP Metrics - метрики API
+  - Billing Metrics - метрики биллинга
+  - Database Metrics - метрики БД (опционально)
+- **Конфигурация:** `monitoring/grafana/provisioning/`
+- **Автоматическая настройка:** datasources и dashboards через provisioning
 
 ---
 

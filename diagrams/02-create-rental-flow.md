@@ -7,7 +7,8 @@ sequenceDiagram
     actor User
     participant UI
     participant RC as rental-core
-    participant PG as PostgreSQL
+    participant PGR as db-rental
+    participant PGB as db-billing
     participant ES as external-stubs
     
     Note over User,ES: Создание оффера
@@ -26,8 +27,8 @@ sequenceDiagram
     
     RC->>RC: Расчет цены<br/>(trusted → deposit/2)
     
-    RC->>PG: INSERT quote (TTL=60s)
-    PG-->>RC: quote_id
+    RC->>PGR: INSERT quote (TTL=60s)
+    PGR-->>RC: quote_id
     
     RC-->>UI: 200 {quote_id, price, deposit}
     UI-->>User: Показать оффер
@@ -38,32 +39,35 @@ sequenceDiagram
     UI->>UI: Генерация<br/>Idempotency-Key
     UI->>RC: POST /start {quote_id}<br/>Header: Idempotency-Key
     
-    RC->>PG: SELECT idempotency_keys
+    RC->>PGR: SELECT idempotency_keys
     alt Дубликат запроса
-        PG-->>RC: Запись найдена
+        PGR-->>RC: Запись найдена
         RC-->>UI: 200 (кешированный ответ)
     else Новый запрос
-        PG-->>RC: Не найдено
+        PGR-->>RC: Не найдено
         
-        RC->>PG: SELECT quote
-        PG-->>RC: quote_data
+        RC->>PGR: SELECT quote
+        PGR-->>RC: quote_data
         
         RC->>RC: Проверка expires_at
         
         alt Оффер истек
             RC-->>UI: 400 "Quote expired"
         else Оффер валиден
-            RC->>PG: INSERT rental (PENDING)
-            PG-->>RC: rental_id
-            Note over RC,PG: Сначала БД, потом банка!
+            RC->>PGR: INSERT rental (PENDING)
+            PGR-->>RC: rental_id
+            Note over RC,PGR: Сначала БД, потом банка!
+            
+            RC->>PGB: INSERT rental (копия)
+            Note over RC,PGB: Синхронизация в billing
             
             RC->>ES: GET /eject-powerbank
             alt Выдача успешна
                 ES-->>RC: powerbank_id
-                RC->>PG: UPDATE rental (powerbank_id)
+                RC->>PGR: UPDATE rental (powerbank_id)
             else Выдача неуспешна
                 ES-->>RC: error
-                RC->>PG: UPDATE rental (FAILED)
+                RC->>PGR: UPDATE rental (FAILED)
                 RC-->>UI: 500 "Eject failed"
             end
             
@@ -72,15 +76,15 @@ sequenceDiagram
                 ES-->>RC: success
             else Недостаточно средств
                 ES-->>RC: 400 error
-                RC->>PG: INSERT debt (deposit)
-                Note over RC: Долг зафиксирован,<br/>аренда продолжается
+                RC->>PGB: INSERT debt (deposit)
+                Note over RC,PGB: Долг в billing БД
             end
             
-            RC->>PG: INSERT idempotency_key
-            PG-->>RC: OK
+            RC->>PGR: INSERT idempotency_key
+            PGR-->>RC: OK
             
-            RC->>PG: DELETE quote
-            Note over RC,PG: Оффер использован
+            RC->>PGR: DELETE quote
+            Note over RC,PGR: Оффер использован
             
             RC-->>UI: 200 {rental_id, ACTIVE}
             UI-->>User: Аренда активна
