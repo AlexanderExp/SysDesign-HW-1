@@ -38,8 +38,8 @@ def test_idempotency_repository_create_and_get_cached_response(db_session):
     assert cached == response
 
 
-def test_payment_repository_create_and_total_paid(db_session):
-    repo = PaymentRepository(db_session)
+def test_payment_repository_create_and_total_paid(billing_db_session):
+    repo = PaymentRepository(billing_db_session)
     rental_id = "r1"
 
     repo.create_payment_attempt(rental_id, 100, True)
@@ -54,8 +54,8 @@ def test_payment_repository_create_and_total_paid(db_session):
     assert all(a.success for a in successful)
 
 
-def test_payment_repository_total_paid_zero_for_unknown_rental(db_session):
-    repo = PaymentRepository(db_session)
+def test_payment_repository_total_paid_zero_for_unknown_rental(billing_db_session):
+    repo = PaymentRepository(billing_db_session)
     assert repo.get_total_paid("unknown") == 0
 
 
@@ -193,8 +193,8 @@ def test_rental_repository_calculate_due_amount_with_free_period(db_session):
     assert repo.calculate_due_amount(rental_no_start, t_after) == 0
 
 
-def test_debt_repository_add_and_get_amount(db_session):
-    repo = DebtRepository(db_session)
+def test_debt_repository_add_and_get_amount(billing_db_session):
+    repo = DebtRepository(billing_db_session)
     rental_id = "r-debt-1"
 
     assert repo.get_amount(rental_id) == 0
@@ -205,8 +205,8 @@ def test_debt_repository_add_and_get_amount(db_session):
     assert repo.get_amount(rental_id) == 250
 
 
-def test_debt_repository_reduce_and_attempts(db_session):
-    repo = DebtRepository(db_session)
+def test_debt_repository_reduce_and_attempts(billing_db_session):
+    repo = DebtRepository(billing_db_session)
     rental_id = "r-debt-2"
 
     repo.add_debt(rental_id, 300)
@@ -228,8 +228,8 @@ def test_debt_repository_reduce_and_attempts(db_session):
     assert debt.last_attempt_at is not None
 
 
-def test_debt_repository_should_retry_debt(db_session):
-    repo = DebtRepository(db_session)
+def test_debt_repository_should_retry_debt(billing_db_session):
+    repo = DebtRepository(billing_db_session)
     rental_id = "r-debt-3"
 
     assert repo.should_retry_debt(rental_id, backoff_seconds=10) is False
@@ -239,12 +239,12 @@ def test_debt_repository_should_retry_debt(db_session):
 
     debt = repo.get_by_rental_id(rental_id)
     debt.last_attempt_at = datetime.now(timezone.utc)
-    db_session.commit()
+    billing_db_session.commit()
     assert repo.should_retry_debt(rental_id, backoff_seconds=3600) is False
 
 
-def test_debt_repository_attach_debt(db_session):
-    repo = DebtRepository(db_session)
+def test_debt_repository_attach_debt(billing_db_session):
+    repo = DebtRepository(billing_db_session)
     rental_id = "r-debt-4"
     now = datetime.now(timezone.utc)
 
