@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 from loguru import logger
 from sqlalchemy import func
@@ -9,8 +9,17 @@ from shared.db.models import Debt
 
 
 class DebtRepository:
-    def __init__(self, session: Session):
+    def __init__(
+        self,
+        session: Session,
+        metrics_callback: Optional[Callable[[str, int], None]] = None,
+    ):
         self.session = session
+        self._metrics_callback = metrics_callback
+
+    def _record_debt_operation(self, operation: str, amount: int = 0):
+        if self._metrics_callback:
+            self._metrics_callback(operation, amount)
 
     # --- Базовые операции ---
 
@@ -52,6 +61,8 @@ class DebtRepository:
                 amount,
             )
 
+        self._record_debt_operation("add", amount)
+
     def reduce_debt(self, rental_id: str, amount: int) -> bool:
         """Уменьшает долг на amount.
 
@@ -82,6 +93,8 @@ class DebtRepository:
             amount,
             debt.amount_total,
         )
+
+        self._record_debt_operation("reduce", amount)
         return True
 
     def increment_attempts(self, rental_id: str) -> None:
@@ -106,6 +119,8 @@ class DebtRepository:
             debt.attempts,
             debt.last_attempt_at,
         )
+
+        self._record_debt_operation("retry")
 
     # --- Логика ретраев (то, что ломалось в тесте) ---
 

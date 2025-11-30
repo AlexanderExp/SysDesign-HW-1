@@ -4,18 +4,29 @@ import pybreaker
 from loguru import logger
 
 from rental_core.config.settings import Settings
+from rental_core.monitoring.metrics import (
+    circuit_breaker_failures,
+    circuit_breaker_state,
+)
 
 
 class LoggingCircuitBreakerListener(pybreaker.CircuitBreakerListener):
-    """Listener для логирования смены состояния circuit breaker'а."""
-
     def state_change(self, cb, old_state, new_state) -> None:
         logger.warning(
             f"Circuit Breaker '{cb.name}' state changed: {old_state} -> {new_state}. "
             f"Failures: {cb.fail_counter}/{cb.fail_max}"
         )
 
-    # методы before_call / success / failure можно не переопределять,
+        state_value = {"closed": 0, "open": 1, "half_open": 2}.get(new_state, 0)
+        circuit_breaker_state.labels(service="rental-core", circuit_name=cb.name).set(
+            state_value
+        )
+
+    def failure(self, cb, exc) -> None:  # noqa: ARG002
+        circuit_breaker_failures.labels(
+            service="rental-core", circuit_name=cb.name
+        ).inc()
+
     # если они не нужны – базовый класс оставит их no-op
 
 

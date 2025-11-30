@@ -34,7 +34,9 @@ def get_services(settings: Settings):
     try:
         rental_repo = RentalRepository(rental_session)
         payment_repo = PaymentRepository(billing_session)
-        debt_repo = DebtRepository(billing_session)
+        debt_repo = DebtRepository(
+            billing_session, metrics_callback=MetricsCollector.record_debt_operation
+        )
 
         external = ExternalClient(settings)
 
