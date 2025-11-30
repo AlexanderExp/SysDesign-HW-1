@@ -37,32 +37,28 @@
    - Оценка ресурсов
    - Bottlenecks и решения
 
----
-
 ## Ключевые решения
 
 ### Архитектура
-- ✅ 2 микросервиса: rental-core + billing-worker
-- ✅ PostgreSQL для персистентности
-- ✅ Redis для кеширования
-- ✅ external-stubs для имитации внешних систем
+- 2 микросервиса: rental-core + billing-worker
+- PostgreSQL для персистентности
+- Redis для кеширования
+- external-stubs для имитации внешних систем
 
 ### Надежность
-- ✅ Fallback для некритичных источников
-- ✅ Кеширование (configs, tariffs)
-- ✅ Идемпотентность через idempotency_keys
-- ✅ HTTP retry с exponential backoff
+- Fallback для некритичных источников
+- Кеширование (configs, tariffs)
+- Идемпотентность через idempotency_keys
+- HTTP retry с exponential backoff
 
 ### Масштабируемость
-- ✅ Stateless rental-core → горизонтальное масштабирование
-- ✅ Шардирование billing-worker по rental_id
-- ✅ PostgreSQL replicas для read
-- ✅ Redis cluster для кеша
+- Stateless rental-core → горизонтальное масштабирование
+- Шардирование billing-worker по rental_id
+- PostgreSQL replicas для read
+- Redis cluster для кеша
 
 ### Биллинг
-- ✅ Периодическое начисление каждые 30 сек
-- ✅ Управление долгами с exponential backoff
-- ✅ Автовыкуп при R_BUYOUT = 5000 ₽
-- ✅ Аудит всех платежей в payment_attempts
-
----
+- Периодическое начисление каждые 30 сек
+- Управление долгами с exponential backoff
+- Автовыкуп при R_BUYOUT = 5000 ₽
+- Аудит всех платежей в payment_attempts
