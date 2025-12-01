@@ -23,3 +23,9 @@ docker compose up rental-core
 cd services/rental-core
 uv run pytest tests/ -v
 ```
+## База данных
+
+Сервис использует две PostgreSQL-БД (через общий пакет `shared`):
+
+- `db-rental` — основная БД для офферов, аренд и ключей идемпотентности.
+- `db-billing` — read-only доступ к данным биллинга (долги, попытки платежей), чтобы отдавать корректный статус аренды.
