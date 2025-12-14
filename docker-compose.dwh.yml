@@ -66,7 +66,7 @@ services:
     volumes:
       - ./dwh/dags:/opt/airflow/dags
       - ./dwh/sql:/opt/airflow/sql
-      - ./dwh/artifacts:/opt/airflow/artifacts
+      - airflow_artifacts:/opt/airflow/artifacts
       - airflow_logs:/opt/airflow/logs
     entrypoint: /bin/bash
     command:
@@ -91,7 +91,7 @@ services:
     volumes:
       - ./dwh/dags:/opt/airflow/dags
       - ./dwh/sql:/opt/airflow/sql
-      - ./dwh/artifacts:/opt/airflow/artifacts
+      - airflow_artifacts:/opt/airflow/artifacts
       - airflow_logs:/opt/airflow/logs
     command:  bash -lc "exec airflow webserver --host 0.0.0.0 --port 8080 --access-logfile - --error-logfile -"
     restart: unless-stopped
@@ -108,8 +108,8 @@ services:
     volumes:
       - ./dwh/dags:/opt/airflow/dags
       - ./dwh/sql:/opt/airflow/sql
+      - airflow_artifacts:/opt/airflow/artifacts
       - airflow_logs:/opt/airflow/logs
-      - ./dwh/artifacts:/opt/airflow/artifacts
     command: bash -lc "exec airflow scheduler"
     restart: unless-stopped
 
@@ -118,3 +118,4 @@ volumes:
   dwh_pgdata:
   airflow_pgdata:
   airflow_logs:
+  airflow_artifacts:

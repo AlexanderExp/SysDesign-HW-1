@@ -149,6 +149,12 @@ with DAG(
         ],
     )
 
+    init_billing_source = PostgresOperator(
+        task_id="init_billing_source",
+        postgres_conn_id=BILLING_CONN_ID,  # "billing_db"
+        sql="00_billing_init.sql",
+    )
+
     # 2) Load RAW from sources (full load for each table)
     @task(task_id="load_raw")
     def load_raw():
@@ -189,4 +195,4 @@ with DAG(
             out_files.append(out_path)
         return out_files
 
-    dwh_bootstrap >> load_raw() >> build_core >> build_mart >> export_artifacts()
+    dwh_bootstrap >> init_billing_source >> load_raw() >> build_core >> build_mart >> export_artifacts()
