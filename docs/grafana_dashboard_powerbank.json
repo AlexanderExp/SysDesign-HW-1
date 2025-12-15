@@ -46,7 +46,7 @@
       "targets": [
         {
           "format": "table",
-          "rawSql": "SELECT rentals_completed_cnt AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "rawSql": "SELECT rentals_finished_cnt AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
           "refId": "A"
         }
       ],
