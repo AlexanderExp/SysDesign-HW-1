@@ -52,6 +52,8 @@ services:
       AIRFLOW__WEBSERVER__SECRET_KEY: "dev-secret-key"
       AIRFLOW__WEBSERVER__RBAC: "true"
       # Admin user for Airflow UI:
+      # WARNING: The following admin credentials are for development only.
+      #          YOU MUST CHANGE THESE CREDENTIALS BEFORE USING IN PRODUCTION!
       _AIRFLOW_WWW_USER_USERNAME: admin
       _AIRFLOW_WWW_USER_PASSWORD: admin
       _AIRFLOW_WWW_USER_FIRSTNAME: Admin
