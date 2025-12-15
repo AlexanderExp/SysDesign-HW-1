@@ -80,35 +80,37 @@ def _truncate_and_load_full(
 
         # 2) stream rows from source
         scur = sconn.cursor(name=f"sscur_{source_table}")
-        scur.itersize = chunk_size
-        scur.execute(select_sql)
+        try:
+            scur.itersize = chunk_size
+            scur.execute(select_sql)
 
-        with dconn.cursor() as dcur:
-            while True:
-                rows = scur.fetchmany(chunk_size)
-                if not rows:
-                    break
+            with dconn.cursor() as dcur:
+                while True:
+                    rows = scur.fetchmany(chunk_size)
+                    if not rows:
+                        break
 
-                if "_ingested_at" in tgt_cols:
-                    execute_values(
-                        dcur,
-                        f"INSERT INTO {target_schema}.{target_table} ({insert_cols_sql}) VALUES %s",
-                        [tuple(r) for r in rows],
-                        template="(" + ", ".join(["%s"] * len(common_cols)) + ", now())",
-                        page_size=5000,
-                    )
-                else:
-                    execute_values(
-                        dcur,
-                        f"INSERT INTO {target_schema}.{target_table} ({insert_cols_sql}) VALUES %s",
-                        [tuple(r) for r in rows],
-                        template="(" + ", ".join(["%s"] * len(common_cols)) + ")",
-                        page_size=5000,
-                    )
-                inserted += len(rows)
+                    if "_ingested_at" in tgt_cols:
+                        execute_values(
+                            dcur,
+                            f"INSERT INTO {target_schema}.{target_table} ({insert_cols_sql}) VALUES %s",
+                            [tuple(r) for r in rows],
+                            template="(" + ", ".join(["%s"] * len(common_cols)) + ", now())",
+                            page_size=5000,
+                        )
+                    else:
+                        execute_values(
+                            dcur,
+                            f"INSERT INTO {target_schema}.{target_table} ({insert_cols_sql}) VALUES %s",
+                            [tuple(r) for r in rows],
+                            template="(" + ", ".join(["%s"] * len(common_cols)) + ")",
+                            page_size=5000,
+                        )
+                    inserted += len(rows)
 
-        dconn.commit()
-        scur.close()
+            dconn.commit()
+        finally:
+            scur.close()
 
     return {
         "source": f"{source_schema}.{source_table}",
