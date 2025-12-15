@@ -75,7 +75,13 @@ services:
       - -c
       - |
         airflow db migrate
-        airflow users create           --username "$${_AIRFLOW_WWW_USER_USERNAME}"           --password "$${_AIRFLOW_WWW_USER_PASSWORD}"           --firstname "$${_AIRFLOW_WWW_USER_FIRSTNAME}"           --lastname "$${_AIRFLOW_WWW_USER_LASTNAME}"           --role Admin           --email "$${_AIRFLOW_WWW_USER_EMAIL}" || true
+        airflow users create \
+          --username "$${_AIRFLOW_WWW_USER_USERNAME}" \
+          --password "$${_AIRFLOW_WWW_USER_PASSWORD}" \
+          --firstname "$${_AIRFLOW_WWW_USER_FIRSTNAME}" \
+          --lastname "$${_AIRFLOW_WWW_USER_LASTNAME}" \
+          --role Admin \
+          --email "$${_AIRFLOW_WWW_USER_EMAIL}" || true
 
   airflow-webserver:
     image: apache/airflow:2.9.3
