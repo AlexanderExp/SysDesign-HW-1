@@ -4,47 +4,52 @@
 
 ### raw_rental.quotes
 Copy of `db-rental.public.quotes` (as-is). Used to count quote creation and join rental -> quote.
-- `id` (PK) – quote id
-- `user_id` – customer
-- `station_id` – where quote was requested
-- `powerbank_id` – powerbank model/slot (if present)
-- `price_amount`, `currency` – price proposal
-- `created_at`, `updated_at`
-- `_ingested_at` – DWH load timestamp
+- `id` (PK)
+- `user_id`
+- `price_amount`
+- `created_at`
+- `updated_at`
+- `_ingested_at`
 
 ### raw_rental.rentals
 Copy of `db-rental.public.rentals` (as-is). Main business entity.
-- `id` (PK) – rental id
-- `quote_id` – link to quote
-- `user_id`, `station_id`, `powerbank_id`
-- `status` – rental status
-- `started_at`, `ended_at`
-- `created_at`, `updated_at`
+- `id` (PK)
+- `user_id`
+- `status`
+- `started_at`
+- `ended_at`
+- `created_at`
+- `updated_at`
 - `_ingested_at`
 
 ### raw_rental.idempotency_keys
 Technical table for idempotent requests.
 - `id` (PK)
-- `idem_key`, `scope`, `created_at`, `request_hash`
+- `idem_key`
+- `scope`
+- `created_at`
+- `request_hash`
 - `_ingested_at`
 
 ### raw_billing.debts
 Copy of `db-billing.public.debts` (SoT for finance).
-- `id` (PK) – debt id
-- `rental_id`, `user_id`
-- `amount`, `currency`
-- `status` – OPEN/PAID/OVERDUE/...
-- `due_at`, `created_at`, `updated_at`
+- `id` (PK)
+- `rental_id`
+- `user_id`
+- `amount`
+- `status`
+- `created_at`
+- `updated_at`
 - `_ingested_at`
 
 ### raw_billing.payment_attempts
 Copy of `db-billing.public.payment_attempts` (SoT for payments).
-- `id` (PK) – attempt id
+- `id` (PK)
 - `debt_id`
-- `amount`, `currency`
-- `status` – SUCCESS/FAILED/PENDING/...
-- `provider`
-- `created_at`, `updated_at`
+- `amount`
+- `status`
+- `created_at`
+- `updated_at`
 - `_ingested_at`
 
 ## CORE layer (canonical)
