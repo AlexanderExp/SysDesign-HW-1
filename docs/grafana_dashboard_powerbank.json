@@ -1,0 +1,235 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Rentals started (today)",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT rentals_started_cnt AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Rentals completed (today)",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT rentals_finished_cnt AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Revenue paid (today)",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT revenue_paid_amount AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currency"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Payment success rate (today)",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT CASE WHEN payments_total_cnt > 0 THEN (payments_success_cnt::float / payments_total_cnt) * 100 ELSE NULL END AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Avg rental duration (min, today)",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT avg_rental_duration_min AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "minutes"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Quotes (today)",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "targets": [
+        {
+          "format": "table",
+          "rawSql": "SELECT quotes_cnt AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        },
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rentals started / completed (daily)",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT day::timestamptz as time, rentals_started_cnt as rentals_started, rentals_finished_cnt as rentals_completed FROM mart.kpi_daily ORDER BY day",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Revenue & payment success rate (daily)",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "format": "time_series",
+          "rawSql": "SELECT day::timestamptz as time, revenue_paid_amount as revenue_paid_amount, payment_success_rate as payment_success_rate FROM mart.kpi_daily ORDER BY day",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "dwh",
+    "powerbank"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timezone": "",
+  "title": "Powerbank Rental KPI",
+  "uid": "powerbank-kpi",
+  "version": 1
+}

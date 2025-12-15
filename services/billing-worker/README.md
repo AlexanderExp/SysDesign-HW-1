@@ -21,3 +21,9 @@ docker compose up billing-worker
 cd services/billing-worker
 uv run pytest tests/ -v
 ```
+## База данных
+
+Billing-воркер работает с двумя БД:
+
+- `db-rental` — читает активные аренды и обновляет их статус (`ACTIVE`, `BUYOUT`, `FINISHED`).
+- `db-billing` — хранит долги (`debts`) и историю попыток списания (`payment_attempts`).
