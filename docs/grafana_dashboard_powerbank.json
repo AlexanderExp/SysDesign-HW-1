@@ -103,7 +103,7 @@
       "targets": [
         {
           "format": "table",
-          "rawSql": "SELECT payment_success_rate AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
+          "rawSql": "SELECT CASE WHEN payments_total_cnt > 0 THEN (payments_success_cnt::float / payments_total_cnt) * 100 ELSE NULL END AS value FROM mart.kpi_daily WHERE day = CURRENT_DATE",
           "refId": "A"
         }
       ],
