@@ -191,7 +191,7 @@
       "targets": [
         {
           "format": "time_series",
-          "rawSql": "SELECT day::timestamptz as time, rentals_started_cnt as rentals_started, rentals_completed_cnt as rentals_completed FROM mart.kpi_daily ORDER BY day",
+          "rawSql": "SELECT day::timestamptz as time, rentals_started_cnt as rentals_started, rentals_finished_cnt as rentals_completed FROM mart.kpi_daily ORDER BY day",
           "refId": "A"
         }
       ]
