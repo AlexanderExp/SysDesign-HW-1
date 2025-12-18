@@ -3,7 +3,12 @@
 
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS mart.fct_rentals (
+-- Пересоздаём таблицы (full refresh)
+DROP TABLE IF EXISTS mart.fct_rentals CASCADE;
+DROP TABLE IF EXISTS mart.fct_payments CASCADE;
+DROP TABLE IF EXISTS mart.kpi_daily CASCADE;
+
+CREATE TABLE mart.fct_rentals (
   rental_id       varchar(64) PRIMARY KEY,
   user_id         varchar(64) NOT NULL,
   powerbank_id    varchar(64) NOT NULL,
@@ -16,7 +21,7 @@ CREATE TABLE IF NOT EXISTS mart.fct_rentals (
   deposit         integer     NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS mart.fct_payments (
+CREATE TABLE mart.fct_payments (
   payment_attempt_id integer PRIMARY KEY,
   rental_id          varchar(64) NOT NULL,
   amount             integer     NOT NULL,
@@ -25,7 +30,7 @@ CREATE TABLE IF NOT EXISTS mart.fct_payments (
   created_at         timestamptz NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS mart.kpi_daily (
+CREATE TABLE mart.kpi_daily (
   day                     date PRIMARY KEY,
   quotes_cnt              integer NOT NULL DEFAULT 0,
   rentals_started_cnt     integer NOT NULL DEFAULT 0,
@@ -35,11 +40,6 @@ CREATE TABLE IF NOT EXISTS mart.kpi_daily (
   revenue_amount          bigint  NOT NULL DEFAULT 0,
   avg_rental_duration_min numeric(12,2)
 );
-
-TRUNCATE TABLE
-  mart.kpi_daily,
-  mart.fct_payments,
-  mart.fct_rentals;
 
 -- Facts
 INSERT INTO mart.fct_rentals

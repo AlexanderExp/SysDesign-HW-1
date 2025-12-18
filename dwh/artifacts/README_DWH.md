@@ -5,25 +5,30 @@
 ```
 dwh/
   sql/
-    00_schemas.sql
-    00_billing_init.sql
-    01_raw.sql
-    02_core.sql
-    03_mart.sql
-    04_meta.sql
+    00_schemas.sql      # Создание схем (raw_rental, raw_billing, core, mart, meta)
+    01_raw.sql          # DDL для RAW слоя
+    02_core.sql         # Трансформация RAW → CORE
+    03_mart.sql         # Построение витрин MART + KPI
+    04_meta.sql         # Метаданные ETL (audit, watermarks)
   dags/
-    dwh_etl_powerbank.py
+    dwh_master.py              # Мастер-DAG (оркестрация)
+    dwh_raw_extract_rental.py  # DAG A: загрузка из rental
+    dwh_raw_extract_billing.py # DAG B: загрузка из billing
+    dwh_core_build.py          # DAG C: построение CORE
+    dwh_mart_build.py          # DAG D: построение MART + экспорт
+    dwh_etl_powerbank.py       # Legacy монолитный DAG
   artifacts/
-    (CSV "снимки", генерируются Airflow)
+    dwh_dump.sql               # Полный дамп DWH
+    dwh_schema_only.sql        # Только схема
+    mart_*.csv                 # CSV снимки витрин
+    README.md                  # Инструкция по восстановлению
+scripts/
+  dump_dwh.sh                  # Создание дампа
+  restore_dwh.sh               # Восстановление из дампа
+  check_dwh_data.sh            # Проверка данных
 docs/
-  dwh_schema.md
-  tables.md
+  dwh_tables.md                # Документация по таблицам
 ```
-
-* **dwh/sql/** — DDL и SQL-трансформации по слоям RAW / CORE / MART + META
-* **dwh/dags/** — Airflow DAG `dwh_powerbank_etl`
-* **dwh/artifacts/** — статические “снимки” (CSV), генерируются задачей `export_artifacts`
-* **docs/** — документация по таблицам и схема DWH
 
 ---
 
@@ -31,19 +36,17 @@ docs/
 
 В docker-compose добавлены:
 
-* **db-dwh** — Postgres для DWH
+* **db-dwh** — Postgres для DWH (порт 5444)
 * **airflow-db** — Postgres для метаданных Airflow
 * **airflow-init** — инициализация Airflow (миграции + admin user)
-* **airflow-webserver** — Airflow UI
+* **airflow-webserver** — Airflow UI (порт 8080)
 * **airflow-scheduler** — планировщик DAG-ов
 
-Airflow connections:
+Airflow connections (настроены автоматически):
 
-* `rental_db` → Postgres `db-rental` (база `rental`)
-* `billing_db` → Postgres `db-billing` (база `billing`)
-* `dwh_db` → Postgres `db-dwh` (база `dwh`)
-
-ETL **не выполняется вручную** — весь процесс запускается и контролируется через Airflow.
+* `rental_db` → `db-rental:5432/rental`
+* `billing_db` → `db-billing:5432/billing`
+* `dwh_db` → `db-dwh:5432/dwh`
 
 ---
 
@@ -52,7 +55,6 @@ ETL **не выполняется вручную** — весь процесс �
 ### Требования
 
 * Docker + Docker Compose
-* (macOS) Colima или Docker Desktop
 
 ### 1. Поднять инфраструктуру
 
@@ -68,102 +70,151 @@ docker ps
 
 ### 2. Airflow UI
 
-Открыть в браузере:
+Открыть в браузере: http://localhost:8080
+
+Логин / пароль: `admin / admin`
+
+---
+
+## DAG-и ETL
+
+### Архитектура DAG-ов
 
 ```
-http://localhost:8080
+dwh_master (оркестратор)
+├── dwh_raw_extract_rental (DAG A)  ─┐
+├── dwh_raw_extract_billing (DAG B) ─┼─ параллельно
+│                                    │
+├── dwh_core_build (DAG C)          ─┘ после RAW
+│
+└── dwh_mart_build (DAG D)          ─  после CORE
 ```
 
-Логин / пароль:
+### DAG A: dwh_raw_extract_rental
+- Загружает данные из `db-rental` в `raw_rental.*`
+- Таблицы: `quotes`, `rentals`, `idempotency_keys`
+- Стратегия: truncate + insert (full load)
 
-```
-admin / admin
-```
+### DAG B: dwh_raw_extract_billing
+- Загружает данные из `db-billing` в `raw_billing.*`
+- Таблицы: `debts`, `payment_attempts`
+- **SoT (Source of Truth)** для платежей и долгов!
+
+### DAG C: dwh_core_build
+- Строит CORE слой из RAW данных
+- Соблюдает SoT: `core.debts` и `core.payment_attempts` только из billing
+
+### DAG D: dwh_mart_build
+- Строит витрины: `mart.fct_rentals`, `mart.fct_payments`
+- Вычисляет KPI: `mart.kpi_daily` (6 метрик)
+- Экспортирует CSV артефакты
 
 ---
 
 ## Запуск ETL
 
-### Через Airflow UI
+### Рекомендуемый способ: Мастер-DAG
 
-1. Открыть DAG **dwh_powerbank_etl**
+```bash
+# Через Airflow UI
+1. Открыть DAG "dwh_master"
 2. Включить DAG (toggle)
-3. Нажать **Trigger DAG**
+3. Нажать "Trigger DAG"
 
-### Через CLI
+# Через CLI
+docker exec -it airflow-webserver airflow dags trigger dwh_master
+```
+
+### Альтернатива: Legacy DAG
 
 ```bash
 docker exec -it airflow-webserver airflow dags trigger dwh_powerbank_etl
 ```
 
-Посмотреть прогоны:
+### Проверка статуса
 
 ```bash
-docker exec -it airflow-webserver airflow dags list-runs -d dwh_powerbank_etl
+docker exec -it airflow-webserver airflow dags list-runs -d dwh_master
 ```
-
-Статусы задач конкретного run:
-
-```bash
-docker exec -it airflow-webserver airflow tasks states-for-dag-run \
-  dwh_powerbank_etl 'manual__YYYY-MM-DDTHH:MM:SS+00:00'
-```
-
-Ожидаемый результат — **все задачи в состоянии `success`**.
-
----
-
-## Логика DAG
-
-DAG `dwh_powerbank_etl` состоит из следующих шагов:
-
-1. **dwh_bootstrap** — создание схем и DDL в DWH
-2. **init_billing_source** — инициализация таблиц в источнике billing (если отсутствуют)
-3. **load_raw** — full-load загрузка данных из источников в RAW слой
-4. **build_core** — построение CORE слоя
-5. **build_mart** — построение витрин и KPI
-6. **export_artifacts** — экспорт витрин в CSV
 
 ---
 
 ## Проверка данных в DWH
 
-Подключиться к DWH:
+### Скрипт проверки (рекомендуется)
+
+```bash
+./scripts/check_dwh_data.sh
+```
+
+### Вручную
 
 ```bash
 docker exec -it db-dwh psql -U dwh -d dwh
 ```
 
-Проверить витрины:
-
 ```sql
-\dt mart.*;
-select count(*) from mart.fct_rentals;
-select count(*) from mart.fct_payments;
-select * from mart.kpi_daily order by day desc limit 10;
+-- RAW слой
+SELECT count(*) FROM raw_rental.rentals;
+SELECT count(*) FROM raw_billing.payment_attempts;
+
+-- CORE слой
+SELECT count(*) FROM core.rentals;
+
+-- MART слой
+SELECT count(*) FROM mart.kpi_daily;
+
+-- KPI данные
+SELECT * FROM mart.kpi_daily ORDER BY day DESC LIMIT 5;
 ```
 
 ---
 
-## Artifacts (CSV)
+## Дамп и восстановление DWH
 
-CSV-файлы создаются задачей `export_artifacts` и хранятся внутри Airflow в:
-
-```
-/opt/airflow/artifacts
-```
-
-Скопировать файлы в репозиторий:
+### Создание дампа
 
 ```bash
-mkdir -p dwh/artifacts
-docker cp airflow-webserver:/opt/airflow/artifacts/. dwh/artifacts/
+./scripts/dump_dwh.sh
 ```
+
+Создаёт:
+- `dwh/artifacts/dwh_dump.sql` — полный дамп
+- `dwh/artifacts/dwh_schema_only.sql` — только схема
+
+### Восстановление из дампа
+
+```bash
+./scripts/restore_dwh.sh
+```
+
+Или вручную:
+```bash
+cat dwh/artifacts/dwh_dump.sql | docker exec -i db-dwh psql -U dwh -d dwh
+```
+
+---
+
+## KPI в mart.kpi_daily
+
+| Метрика | Описание |
+|---------|----------|
+| `quotes_cnt` | Количество созданных квот |
+| `rentals_started_cnt` | Количество начатых аренд |
+| `rentals_finished_cnt` | Количество завершённых аренд |
+| `payments_attempts_cnt` | Количество попыток оплаты |
+| `payments_success_cnt` | Количество успешных оплат |
+| `revenue_amount` | Выручка (сумма успешных платежей) |
+| `avg_rental_duration_min` | Средняя длительность аренды (мин) |
 
 ---
 
 ## Статус задания
 
-* Структура репозитория зафиксирована ✅
-* Инфраструктура DWH и Airflow поднята через docker-compose ✅
-* ETL запускается из Airflow UI и завершается зелёным прогоном ✅
+- [x] Структура репозитория зафиксирована
+- [x] Инфраструктура DWH и Airflow поднята через docker-compose
+- [x] Слои DWH и таблицы созданы (DDL)
+- [x] ETL разделён на 4 DAG-а + мастер-DAG
+- [x] Скрипты для дампа/восстановления DWH
+- [ ] Успешный прогон ETL с данными
+- [ ] Дамп DWH с данными
