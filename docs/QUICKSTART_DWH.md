@@ -59,69 +59,45 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 - `sysdesign-hw-1-db-rental-1` (healthy)
 - `sysdesign-hw-1-db-billing-1` (healthy)
 
-## Шаг 4: Создать Airflow Connections
+## Шаг 4: Автоматическая настройка (РЕКОМЕНДУЕТСЯ)
 
 ```bash
-# DWH database
-docker exec airflow-webserver airflow connections add dwh_db \
-  --conn-type postgres \
-  --conn-host db-dwh \
-  --conn-port 5432 \
-  --conn-login dwh \
-  --conn-password dwh \
-  --conn-schema dwh
-
-# Rental database
-docker exec airflow-webserver airflow connections add rental_db \
-  --conn-type postgres \
-  --conn-host db-rental \
-  --conn-port 5432 \
-  --conn-login app \
-  --conn-password app \
-  --conn-schema rental
-
-# Billing database
-docker exec airflow-webserver airflow connections add billing_db \
-  --conn-type postgres \
-  --conn-host db-billing \
-  --conn-port 5432 \
-  --conn-login app \
-  --conn-password app \
-  --conn-schema billing
+# Один скрипт делает всё: connections, права, включение DAG-ов, Grafana
+chmod +x scripts/setup_dwh.sh
+./scripts/setup_dwh.sh
 ```
+
+Скрипт автоматически:
+- ✅ Создаёт Airflow connections (dwh_db, rental_db, billing_db)
+- ✅ Исправляет права на `/opt/airflow/artifacts`
+- ✅ Включает все DAG-и
+- ✅ Настраивает Grafana datasource и импортирует дашборд
+
+**Если хотите вручную** — см. раздел "Ручная настройка" в конце документа.
 
 ## Шаг 5: Создать тестовые данные
 
 ```bash
-# Создать несколько аренд через API
-for i in {1..3}; do
-  QJSON=$(curl -s -X POST http://localhost:8000/api/v1/rentals/quote \
-    -H "Content-Type: application/json" \
-    -d "{\"station_id\":\"station-$i\",\"user_id\":\"user-$i\"}")
-  QID=$(echo "$QJSON" | python3 -c 'import sys,json; print(json.load(sys.stdin)["quote_id"])')
-  
-  IDEMP=$(python3 -c 'import uuid; print(uuid.uuid4())')
-  curl -s -X POST http://localhost:8000/api/v1/rentals/start \
-    -H "Content-Type: application/json" \
-    -H "Idempotency-Key: $IDEMP" \
-    -d "{\"quote_id\":\"$QID\"}"
-  
-  sleep 2
-done
-echo "Тестовые данные созданы"
+# Автоматический скрипт
+chmod +x scripts/create_test_data.sh
+./scripts/create_test_data.sh
 ```
 
-## Шаг 6: Включить и запустить ETL
+Или восстановить из готового дампа (быстрее):
+```bash
+cat dwh/artifacts/dwh_dump.sql | docker exec -i db-dwh psql -U dwh -d dwh
+```
+
+## Шаг 6: Запустить ETL
 
 ```bash
-# Включить DAG-и
-docker exec airflow-webserver airflow dags unpause dwh_powerbank_etl
-
-# Исправить права на директорию артефактов
-docker exec -u root airflow-scheduler chmod -R 777 /opt/airflow/artifacts
-
-# Запустить ETL
+# Запустить ETL (DAG-и уже включены скриптом setup_dwh.sh)
 docker exec airflow-webserver airflow dags trigger dwh_powerbank_etl
+```
+
+Или запустить мастер-DAG (вызовет все 4 под-DAG-а):
+```bash
+docker exec airflow-webserver airflow dags trigger dwh_master
 ```
 
 ## Шаг 7: Проверить результат
@@ -136,31 +112,11 @@ docker exec airflow-webserver airflow dags list-runs -d dwh_powerbank_etl
 docker exec db-dwh psql -U dwh -d dwh -c "SELECT * FROM mart.kpi_daily;"
 ```
 
-## Шаг 8: Настроить Grafana дашборд
+## Шаг 8: Проверить Grafana дашборд
 
-```bash
-# Добавить datasource для DWH
-curl -s -u admin:admin -X POST http://localhost:3000/api/datasources \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "DWH PostgreSQL",
-    "type": "postgres",
-    "url": "db-dwh:5432",
-    "database": "dwh",
-    "user": "dwh",
-    "secureJsonData": {"password": "dwh"},
-    "jsonData": {"sslmode": "disable"},
-    "access": "proxy"
-  }'
+Grafana уже настроена скриптом `setup_dwh.sh`. Просто откройте:
 
-# Импортировать дашборд
-curl -s -u admin:admin -X POST http://localhost:3000/api/dashboards/db \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"dashboard\": $(cat monitoring/grafana/provisioning/dashboards/dwh-kpi-dashboard.json),
-    \"overwrite\": true
-  }"
-```
+**http://localhost:3000/d/dwh-kpi-dashboard** (admin/admin)
 
 ## Готово!
 
@@ -209,29 +165,183 @@ docker exec -it db-dwh psql -U dwh -d dwh
 
 ---
 
-## Troubleshooting
+## FAQ / Troubleshooting
 
-### Airflow connections не найдены
+### ❓ Airflow connections не найдены
+
+**Симптом:** DAG падает с ошибкой "connection not found"
+
+**Решение:**
 ```bash
-# Проверить
+# Проверить существующие connections
 docker exec airflow-webserver airflow connections list
 
-# Пересоздать (см. Шаг 4)
+# Запустить скрипт настройки (создаст connections)
+./scripts/setup_dwh.sh
 ```
 
-### DAG падает на load_raw
-Проверить, что таблицы в источниках существуют:
+### ❓ DAG падает на load_raw с ошибкой "relation does not exist"
+
+**Симптом:** `psycopg2.errors.UndefinedTable: relation "public.rentals" does not exist`
+
+**Причина:** В источниках (rental/billing) нет таблиц — нужно запустить миграции или создать данные.
+
+**Решение:**
 ```bash
+# Проверить таблицы в источниках
 docker exec sysdesign-hw-1-db-rental-1 psql -U app -d rental -c "\dt"
 docker exec sysdesign-hw-1-db-billing-1 psql -U app -d billing -c "\dt"
+
+# Если таблиц нет — создать тестовые данные
+./scripts/create_test_data.sh
 ```
 
-### export_artifacts падает с PermissionError
+### ❓ export_artifacts падает с PermissionError
+
+**Симптом:** `PermissionError: [Errno 13] Permission denied: '/opt/airflow/artifacts/...'`
+
+**Причина:** Директория `/opt/airflow/artifacts` принадлежит root, а Airflow работает под пользователем airflow.
+
+**Решение:**
 ```bash
 docker exec -u root airflow-scheduler chmod -R 777 /opt/airflow/artifacts
 ```
 
-### Grafana не показывает данные
-1. Проверить datasource: Settings → Data Sources → DWH PostgreSQL → Test
-2. Проверить, что данные есть: `docker exec db-dwh psql -U dwh -d dwh -c "SELECT * FROM mart.kpi_daily;"`
+Или запустите `./scripts/setup_dwh.sh` — он исправляет права автоматически.
+
+### ❓ Grafana не показывает данные
+
+**Симптомы:** 
+- Панели показывают "No data"
+- Ошибка "datasource not found"
+
+**Решение:**
+```bash
+# 1. Проверить, что datasource создан
+curl -s -u admin:admin http://localhost:3000/api/datasources | python3 -m json.tool
+
+# 2. Если нет — создать
+./scripts/setup_dwh.sh
+
+# 3. Проверить, что данные есть в DWH
+docker exec db-dwh psql -U dwh -d dwh -c "SELECT * FROM mart.kpi_daily;"
+```
+
+### ❓ Контейнеры не стартуют / падают
+
+**Решение:**
+```bash
+# Посмотреть логи
+docker logs airflow-webserver --tail 50
+docker logs airflow-scheduler --tail 50
+docker logs db-dwh --tail 50
+
+# Перезапустить всё
+docker compose -f docker-compose.yml -f docker-compose.dwh.yml down
+docker compose -f docker-compose.yml -f docker-compose.dwh.yml up -d --build
+```
+
+### ❓ "Connection refused" при создании тестовых данных
+
+**Симптом:** `curl: (7) Failed to connect to localhost port 8000`
+
+**Причина:** rental-core ещё не запустился или упал.
+
+**Решение:**
+```bash
+# Проверить статус
+docker ps | grep rental-core
+
+# Посмотреть логи
+docker logs sysdesign-hw-1-rental-core-1 --tail 30
+
+# Подождать и попробовать снова
+sleep 10
+curl http://localhost:8000/api/v1/health
+```
+
+### ❓ DAG-и не появляются в Airflow UI
+
+**Причина:** Airflow scheduler ещё не прочитал файлы DAG-ов.
+
+**Решение:**
+```bash
+# Подождать 30-60 секунд или перезапустить scheduler
+docker restart airflow-scheduler
+
+# Проверить, что DAG-и загружены
+docker exec airflow-webserver airflow dags list | grep dwh
+```
+
+---
+
+## Ручная настройка (если скрипт не работает)
+
+### Создание Airflow Connections вручную
+
+```bash
+# DWH database
+docker exec airflow-webserver airflow connections add dwh_db \
+  --conn-type postgres \
+  --conn-host db-dwh \
+  --conn-port 5432 \
+  --conn-login dwh \
+  --conn-password dwh \
+  --conn-schema dwh
+
+# Rental database
+docker exec airflow-webserver airflow connections add rental_db \
+  --conn-type postgres \
+  --conn-host db-rental \
+  --conn-port 5432 \
+  --conn-login app \
+  --conn-password app \
+  --conn-schema rental
+
+# Billing database
+docker exec airflow-webserver airflow connections add billing_db \
+  --conn-type postgres \
+  --conn-host db-billing \
+  --conn-port 5432 \
+  --conn-login app \
+  --conn-password app \
+  --conn-schema billing
+```
+
+### Включение DAG-ов вручную
+
+```bash
+docker exec airflow-webserver airflow dags unpause dwh_powerbank_etl
+docker exec airflow-webserver airflow dags unpause dwh_master
+docker exec airflow-webserver airflow dags unpause dwh_raw_extract_rental
+docker exec airflow-webserver airflow dags unpause dwh_raw_extract_billing
+docker exec airflow-webserver airflow dags unpause dwh_core_build
+docker exec airflow-webserver airflow dags unpause dwh_mart_build
+```
+
+### Настройка Grafana вручную
+
+```bash
+# Добавить datasource
+curl -s -u admin:admin -X POST http://localhost:3000/api/datasources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "DWH PostgreSQL",
+    "type": "postgres",
+    "url": "db-dwh:5432",
+    "database": "dwh",
+    "user": "dwh",
+    "secureJsonData": {"password": "dwh"},
+    "jsonData": {"sslmode": "disable"},
+    "access": "proxy"
+  }'
+
+# Импортировать дашборд
+curl -s -u admin:admin -X POST http://localhost:3000/api/dashboards/db \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"dashboard\": $(cat monitoring/grafana/provisioning/dashboards/dwh-kpi-dashboard.json),
+    \"overwrite\": true
+  }"
+```
 
