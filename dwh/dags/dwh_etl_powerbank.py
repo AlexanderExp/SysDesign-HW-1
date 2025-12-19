@@ -1,3 +1,10 @@
+"""
+DEPRECATED: Этот DAG оставлен для обратной совместимости.
+Используйте dwh_master для оркестрации ETL.
+
+Монолитный DAG, который выполняет весь ETL процесс в одном DAG-е.
+Для production рекомендуется использовать dwh_master с разделёнными DAG-ами.
+"""
 from __future__ import annotations
 
 import os
@@ -24,7 +31,7 @@ RAW_LOAD_CONFIG = [
     {"source_conn_id": RENTAL_CONN_ID, "source_schema": "public", "source_table": "quotes", "target_schema": "raw_rental", "target_table": "quotes"},
     {"source_conn_id": RENTAL_CONN_ID, "source_schema": "public", "source_table": "rentals", "target_schema": "raw_rental", "target_table": "rentals"},
     {"source_conn_id": RENTAL_CONN_ID, "source_schema": "public", "source_table": "idempotency_keys", "target_schema": "raw_rental", "target_table": "idempotency_keys"},
-    # billing service
+    # billing service (SoT для debts и payment_attempts!)
     {"source_conn_id": BILLING_CONN_ID, "source_schema": "public", "source_table": "debts", "target_schema": "raw_billing", "target_table": "debts"},
     {"source_conn_id": BILLING_CONN_ID, "source_schema": "public", "source_table": "payment_attempts", "target_schema": "raw_billing", "target_table": "payment_attempts"},
 ]
@@ -133,11 +140,19 @@ default_args = {"owner": "student", "retries": 2, "retry_delay": timedelta(minut
 with DAG(
     dag_id="dwh_powerbank_etl",
     start_date=datetime(2025, 1, 1),
-    schedule="@daily",
+    schedule=None,  # Отключён, используйте dwh_master
     catchup=False,
     template_searchpath=[SQL_DIR],
     default_args=default_args,
-    tags=["dwh", "powerbank"],
+    tags=["dwh", "powerbank", "legacy"],
+    doc_md="""
+    ## DEPRECATED: dwh_powerbank_etl
+    
+    Монолитный DAG для ETL. Рекомендуется использовать **dwh_master** 
+    для оркестрации разделённых DAG-ов (A/B/C/D).
+    
+    Этот DAG оставлен для обратной совместимости и тестирования.
+    """,
 ) as dag:
 
     # 1) Bootstrap DWH structure

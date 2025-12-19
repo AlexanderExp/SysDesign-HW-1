@@ -19,6 +19,13 @@
 
 Установка uv по [инструкции](https://docs.astral.sh/uv/getting-started/installation/)
 
+## Остановить все контейнеры и перезапустить их без кэша
+
+docker stop $(docker ps -aq)
+docker rm $(docker ps -aq)
+docker compose build --no-cache
+docker compose up -d
+
 Установка Python 3.11:
 ```bash
 uv python install 3.11 --default
