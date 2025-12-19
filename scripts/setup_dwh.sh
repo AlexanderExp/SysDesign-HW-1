@@ -15,6 +15,9 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+GRAFANA_URL="http://localhost:3000"
+GRAFANA_AUTH="admin:admin"
+DWH_DATASOURCE_UID="dwh-postgres"
 
 # Функция проверки
 check_ok() {
@@ -152,21 +155,32 @@ echo ""
 echo "Шаг 5: Настройка Grafana..."
 
 # Проверяем, есть ли уже datasource
-if curl -s -u admin:admin http://localhost:3000/api/datasources/name/DWH%20PostgreSQL 2>/dev/null | grep -q "DWH PostgreSQL"; then
-    check_warn "Grafana datasource уже существует, пропускаем"
-else
-    curl -s -u admin:admin -X POST http://localhost:3000/api/datasources \
+GRAFANA_DS_PAYLOAD=$(cat <<EOF
+{
+    "name": "DWH PostgreSQL",
+    "type": "postgres",
+    "uid": "$DWH_DATASOURCE_UID",
+    "url": "db-dwh:5432",
+    "database": "dwh",
+    "user": "dwh",
+    "secureJsonData": {"password": "dwh"},
+    "jsonData": {"sslmode": "disable"},
+    "access": "proxy"
+}
+EOF
+)
+
+DS_INFO=$(curl -s -u "$GRAFANA_AUTH" "$GRAFANA_URL/api/datasources/name/DWH%20PostgreSQL" 2>/dev/null || true)
+if echo "$DS_INFO" | grep -q '"id"'; then
+    DS_ID=$(echo "$DS_INFO" | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+    curl -s -u "$GRAFANA_AUTH" -X PUT "$GRAFANA_URL/api/datasources/$DS_ID" \
         -H "Content-Type: application/json" \
-        -d '{
-            "name": "DWH PostgreSQL",
-            "type": "postgres",
-            "url": "db-dwh:5432",
-            "database": "dwh",
-            "user": "dwh",
-            "secureJsonData": {"password": "dwh"},
-            "jsonData": {"sslmode": "disable"},
-            "access": "proxy"
-        }' >/dev/null 2>&1
+        -d "$GRAFANA_DS_PAYLOAD" >/dev/null 2>&1
+    check_ok "Grafana datasource обновлен"
+else
+    curl -s -u "$GRAFANA_AUTH" -X POST "$GRAFANA_URL/api/datasources" \
+        -H "Content-Type: application/json" \
+        -d "$GRAFANA_DS_PAYLOAD" >/dev/null 2>&1
     check_ok "Grafana datasource создан"
 fi
 
@@ -210,4 +224,3 @@ echo "4. Открыть UI:"
 echo "   - Airflow: http://localhost:8080 (admin/admin)"
 echo "   - Grafana: http://localhost:3000 (admin/admin)"
 echo ""
-

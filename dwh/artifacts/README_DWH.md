@@ -52,29 +52,55 @@ Airflow connections (настроены автоматически):
 
 ## Запуск проекта
 
-### Требования
+### 1. Клонировать
+git clone https://github.com/AlexanderExp/SysDesign-HW-1.git
+cd SysDesign-HW-1
+git checkout feature/dwh-etl-complete
 
-* Docker + Docker Compose
+### 2. Создать .env (скопировать из QUICKSTART_DWH.md)
 
-### 1. Поднять инфраструктуру
+### 3. Удалить данные по предыдущим запускам при необходимости
+docker compose -f docker-compose.yml -f docker-compose.dwh.yml down -v
+docker volume ls | grep SysDesign-HW-1   # убедиться, что airflow_pgdata/dwh_pgdata удалены
 
-```bash
+
+### 4. Запустить контейнеры
 docker compose -f docker-compose.yml -f docker-compose.dwh.yml up -d --build
-```
 
-Проверка:
+### 5. Подождать ~2 минуты и запустить автонастройку
+./scripts/setup_dwh.sh
 
-```bash
-docker ps
-```
+### 6.
+uv sync 
 
-### 2. Airflow UI
+make migrate-all 
+#### ИЛИ
+#### Поднять только базы (без сервисов)
+docker compose up -d db-rental db-billing
 
-Открыть в браузере: http://localhost:8080
+#### Миграции основной БД (rental)
+uv run alembic -c alembic_rental.ini upgrade head
 
-Логин / пароль: `admin / admin`
+#### Миграции биллинга
+uv run alembic -c alembic_billing.ini upgrade head
 
----
+
+docker exec sysdesign-hw-1-db-rental-1 psql -U app -d rental -c '\dt'
+docker exec sysdesign-hw-1-db-billing-1 psql -U app -d billing -c '\dt'
+
+
+
+### 7. Создать тестовые данные (или восстановить из дампа)
+./scripts/create_test_data.sh
+#### ИЛИ
+cat dwh/artifacts/dwh_dump.sql | docker exec -i db-dwh psql -U dwh -d dwh
+
+### 8. Запустить ETL
+docker exec airflow-webserver airflow dags trigger dwh_powerbank_etl
+
+### 9. Открыть UI
+Airflow: http://localhost:8080 (admin/admin)
+Grafana: http://localhost:3000 (admin/admin)
 
 ## DAG-и ETL
 
@@ -206,15 +232,3 @@ cat dwh/artifacts/dwh_dump.sql | docker exec -i db-dwh psql -U dwh -d dwh
 | `payments_success_cnt` | Количество успешных оплат |
 | `revenue_amount` | Выручка (сумма успешных платежей) |
 | `avg_rental_duration_min` | Средняя длительность аренды (мин) |
-
----
-
-## Статус задания
-
-- [x] Структура репозитория зафиксирована
-- [x] Инфраструктура DWH и Airflow поднята через docker-compose
-- [x] Слои DWH и таблицы созданы (DDL)
-- [x] ETL разделён на 4 DAG-а + мастер-DAG
-- [x] Скрипты для дампа/восстановления DWH
-- [ ] Успешный прогон ETL с данными
-- [ ] Дамп DWH с данными
