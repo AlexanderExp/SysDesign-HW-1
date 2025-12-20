@@ -80,12 +80,12 @@ def _truncate_and_load_full(
     with src.get_conn() as sconn, dwh.get_conn() as dconn:
         dconn.autocommit = False
 
-        # 1) truncate RAW table
+        # truncate RAW table
         with dconn.cursor() as dcur:
             dcur.execute(f"TRUNCATE TABLE {target_schema}.{target_table}")
         dconn.commit()
 
-        # 2) stream rows from source
+        # stream rows from source
         scur = sconn.cursor(name=f"sscur_{source_table}")
         try:
             scur.itersize = chunk_size
@@ -140,7 +140,7 @@ default_args = {"owner": "student", "retries": 2, "retry_delay": timedelta(minut
 with DAG(
     dag_id="dwh_powerbank_etl",
     start_date=datetime(2025, 1, 1),
-    schedule=None,  # Отключён, используйте dwh_master
+    schedule=None,
     catchup=False,
     template_searchpath=[SQL_DIR],
     default_args=default_args,
@@ -155,7 +155,7 @@ with DAG(
     """,
 ) as dag:
 
-    # 1) Bootstrap DWH structure
+    # Bootstrap DWH structure
     dwh_bootstrap = PostgresOperator(
         task_id="dwh_bootstrap",
         postgres_conn_id=DWH_CONN_ID,
@@ -166,7 +166,7 @@ with DAG(
         ],
     )
 
-    # 2) Load RAW from sources (full load for each table)
+    # Load RAW from sources (full load for each table)
     @task(task_id="load_raw")
     def load_raw():
         results = []
@@ -182,7 +182,7 @@ with DAG(
             )
         return results
 
-    # 3) Build CORE + MART
+    # Build CORE + MART
     build_core = PostgresOperator(
         task_id="build_core",
         postgres_conn_id=DWH_CONN_ID,
@@ -195,7 +195,7 @@ with DAG(
         sql="03_mart.sql",
     )
 
-    # 4) Export artifacts (CSV snapshots)
+    # Export artifacts (CSV snapshots)
     @task(task_id="export_artifacts")
     def export_artifacts():
         ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
