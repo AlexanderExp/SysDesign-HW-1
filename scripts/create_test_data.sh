@@ -66,14 +66,14 @@ echo "========================================"
 echo ""
 
 echo "Rental DB:"
-docker exec sysdesign-hw-1-db-rental-1 psql -U app -d rental -t -c \
+docker exec system-design-db-rental-1 psql -U app -d rental -t -c \
     "SELECT '  rentals: ' || count(*) FROM rentals;"
-docker exec sysdesign-hw-1-db-rental-1 psql -U app -d rental -t -c \
+docker exec system-design-db-rental-1 psql -U app -d rental -t -c \
     "SELECT '  quotes: ' || count(*) FROM quotes;"
 
 echo ""
 echo "Billing DB:"
-docker exec sysdesign-hw-1-db-billing-1 psql -U app -d billing -t -c \
+docker exec system-design-db-billing-1 psql -U app -d billing -t -c \
     "SELECT '  payment_attempts: ' || count(*) FROM payment_attempts;"
 
 echo ""

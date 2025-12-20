@@ -8,6 +8,7 @@
 - **billing-worker**: Фоновый воркер для обработки платежей
 - **shared**: Общие утилиты и модели базы данных
 - **external-stubs**: Заглушки внешних сервисов для тестирования
+- **dwh**: Data Warehouse с ETL-процессами на Apache Airflow
 
 ## Требования
 
@@ -53,13 +54,37 @@ uv run alembic -c alembic_billing.ini upgrade head
 docker compose up -d
 ```
 
+## Data Warehouse (DWH)
+
+Для запуска DWH с ETL-процессами на Apache Airflow:
+
+```bash
+# Запуск основной системы + DWH
+docker compose -f docker-compose.yml -f docker-compose.dwh.yml up -d
+
+# Автоматическая настройка DWH (connections, права, DAG-и)
+chmod +x scripts/setup_dwh.sh
+./scripts/setup_dwh.sh
+
+# Создание тестовых данных
+chmod +x scripts/create_test_data.sh
+./scripts/create_test_data.sh
+
+# Запуск ETL
+docker exec airflow-webserver airflow dags trigger dwh_master
+```
+
+**Подробная инструкция:** [`docs/QUICKSTART_DWH.md`](docs/QUICKSTART_DWH.md)
+
 ## Разработка
 
 ### Сервисы
 
 - **rental-core**: http://localhost:8000
-- **PostgreSQL (rental-db)**: localhost:5433 (service: `db-rental`)  
+- **PostgreSQL (rental-db)**: localhost:5433 (service: `db-rental`)
 - **PostgreSQL (billing-db)**: localhost:5434 (service: `db-billing`)
+- **PostgreSQL (DWH)**: localhost:5444 (service: `db-dwh`)
+- **Apache Airflow**: http://localhost:8080 (admin/admin)
 - **External stubs**: localhost:3629
 
 ### Тестирование
@@ -84,10 +109,19 @@ make migrate-all     # Запуск миграций
 ```
 
 ### Дополнительная документация
+
+#### Основная система
 1. **[Диаграммы архитектуры системы аренды пауэрбанков](diagrams/README.md)**
 2. **[ADR](docs/ADR.md)**
 3. **[Billing Worker](services/billing-worker/README.md)**
 4. **[Rental Core](services/rental-core/README.md)**
 5. **[Описание автотестов](tests/README.md)**
 6. **[Демо UI](ui/README.md)**
+
+#### Data Warehouse (DWH)
+7. **[DWH Quick Start — Запуск с нуля](docs/QUICKSTART_DWH.md)**
+8. **[DWH README — Общее описание](docs/README_DWH.md)**
+9.  **[Архитектура DWH (диаграмма)](docs/dwh_architecture_mermaid.md)**
+10. **[Описание таблиц DWH](docs/dwh_tables.md)**
+11. **[ER-диаграмма DDS слоя](docs/er_dds_mermaid.md)**
 

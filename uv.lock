@@ -318,7 +318,7 @@ wheels = [
 ]
 
 [[package]]
-name = "system-design-hw1"
+name = "system-design"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

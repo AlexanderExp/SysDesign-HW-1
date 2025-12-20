@@ -1,3 +1,5 @@
+name: system-design
+
 services:
   db-rental:
     image: postgres:17

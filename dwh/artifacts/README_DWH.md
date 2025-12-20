@@ -61,7 +61,7 @@ git checkout feature/dwh-etl-complete
 
 ### 3. Удалить данные по предыдущим запускам при необходимости
 docker compose -f docker-compose.yml -f docker-compose.dwh.yml down -v
-docker volume ls | grep SysDesign-HW-1   # убедиться, что airflow_pgdata/dwh_pgdata удалены
+docker volume ls | grep system-design   # убедиться, что airflow_pgdata/dwh_pgdata удалены
 
 
 ### 4. Запустить контейнеры
@@ -85,8 +85,8 @@ uv run alembic -c alembic_rental.ini upgrade head
 uv run alembic -c alembic_billing.ini upgrade head
 
 
-docker exec sysdesign-hw-1-db-rental-1 psql -U app -d rental -c '\dt'
-docker exec sysdesign-hw-1-db-billing-1 psql -U app -d billing -c '\dt'
+docker exec system-design-db-rental-1 psql -U app -d rental -c '\dt'
+docker exec system-design-db-billing-1 psql -U app -d billing -c '\dt'
 
 
 

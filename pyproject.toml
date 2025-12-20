@@ -1,5 +1,5 @@
 [project]
-name = "system-design-hw1"
+name = "system-design"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11,<3.12"

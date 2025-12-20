@@ -34,11 +34,11 @@ echo ""
 echo "=== Проверка восстановления ==="
 docker exec db-dwh psql -U dwh -d dwh -c "
 SELECT 
-    schemaname || '.' || tablename as table_name,
+    schemaname || '.' || relname as table_name,
     n_live_tup as row_count
 FROM pg_stat_user_tables
 WHERE schemaname IN ('raw_rental', 'raw_billing', 'core', 'mart', 'meta')
-ORDER BY schemaname, tablename;
+ORDER BY schemaname, relname;
 "
 
 echo ""

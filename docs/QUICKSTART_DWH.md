@@ -56,8 +56,8 @@ docker ps --format "table {{.Names}}\t{{.Status}}"
 - `airflow-webserver`
 - `airflow-scheduler`
 - `airflow-db` (healthy)
-- `sysdesign-hw-1-db-rental-1` (healthy)
-- `sysdesign-hw-1-db-billing-1` (healthy)
+- `system-design-db-rental-1` (healthy)
+- `system-design-db-billing-1` (healthy)
 
 ## Шаг 4: Автоматическая настройка (РЕКОМЕНДУЕТСЯ)
 
@@ -189,8 +189,8 @@ docker exec airflow-webserver airflow connections list
 **Решение:**
 ```bash
 # Проверить таблицы в источниках
-docker exec sysdesign-hw-1-db-rental-1 psql -U app -d rental -c "\dt"
-docker exec sysdesign-hw-1-db-billing-1 psql -U app -d billing -c "\dt"
+docker exec system-design-db-rental-1 psql -U app -d rental -c "\dt"
+docker exec system-design-db-billing-1 psql -U app -d billing -c "\dt"
 
 # Если таблиц нет — создать тестовые данные
 ./scripts/create_test_data.sh
@@ -253,7 +253,7 @@ docker compose -f docker-compose.yml -f docker-compose.dwh.yml up -d --build
 docker ps | grep rental-core
 
 # Посмотреть логи
-docker logs sysdesign-hw-1-rental-core-1 --tail 30
+docker logs system-design-rental-core-1 --tail 30
 
 # Подождать и попробовать снова
 sleep 10
