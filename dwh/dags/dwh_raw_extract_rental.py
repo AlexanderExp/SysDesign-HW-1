@@ -69,12 +69,12 @@ def _truncate_and_load(
     with src.get_conn() as sconn, dwh.get_conn() as dconn:
         dconn.autocommit = False
 
-        # 1) truncate RAW table
+        # truncate RAW table
         with dconn.cursor() as dcur:
             dcur.execute(f"TRUNCATE TABLE {target_schema}.{target_table}")
         dconn.commit()
 
-        # 2) stream rows from source
+        # stream rows from source
         scur = sconn.cursor(name=f"sscur_{source_table}")
         try:
             scur.itersize = chunk_size

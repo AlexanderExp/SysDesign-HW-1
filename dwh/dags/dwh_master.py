@@ -50,7 +50,7 @@ with DAG(
     """,
 ) as dag:
 
-    # Шаг 1: Запуск RAW extract DAG-ов (параллельно)
+    # Запуск RAW extract DAG-ов (параллельно)
     trigger_raw_rental = TriggerDagRunOperator(
         task_id="trigger_raw_rental",
         trigger_dag_id="dwh_raw_extract_rental",
@@ -69,7 +69,7 @@ with DAG(
         failed_states=["failed"],
     )
 
-    # Шаг 2: Запуск CORE build DAG (после завершения RAW)
+    # Запуск CORE build DAG (после завершения RAW)
     trigger_core_build = TriggerDagRunOperator(
         task_id="trigger_core_build",
         trigger_dag_id="dwh_core_build",
@@ -79,7 +79,7 @@ with DAG(
         failed_states=["failed"],
     )
 
-    # Шаг 3: Запуск MART build DAG (после завершения CORE)
+    # Запуск MART build DAG (после завершения CORE)
     trigger_mart_build = TriggerDagRunOperator(
         task_id="trigger_mart_build",
         trigger_dag_id="dwh_mart_build",
